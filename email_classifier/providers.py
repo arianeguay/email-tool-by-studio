@@ -1,20 +1,20 @@
 """Provider dispatch (STU-324): config picks the mailbox implementation.
 
 Orchestration (run_email, executor) talks to `Fetcher` / `Writer` only; the
-provider name comes from `email.provider` in the policy file. Gmail (STU-405) and
-Outlook (STU-847) are both full read-write paths; an unknown provider fails loud
-rather than falling back to either.
+provider name comes from `email.provider` in the policy file. Gmail (STU-405),
+Outlook (STU-847) and IMAP (STU-2054) are full read-write paths; an unknown
+provider fails loud rather than falling back to any of them.
 
 Ontology mapping — how a neutral operation lands on each provider:
 
-| Neutral       | Gmail                              | Outlook (Graph)                            |
-|---------------|------------------------------------|--------------------------------------------|
-| ensure_label  | labels.create/list -> labelId      | category (mailbox master category)         |
-| add_label     | messages.modify addLabelIds        | add to `categories`                        |
-| remove_label  | messages.modify removeLabelIds     | remove from `categories`                   |
-| remove INBOX  | removeLabelIds ["INBOX"]           | move to a folder (Archive)                 |
-| trash         | messages.trash                     | move to Deleted Items (`/move` to folder)  |
-| draft         | drafts API                         | Drafts folder                              |
+| Neutral       | Gmail                              | Outlook (Graph)                            | IMAP                       |
+|---------------|------------------------------------|--------------------------------------------|----------------------------|
+| ensure_label  | labels.create/list -> labelId      | category (mailbox master category)         | keyword (the name itself)  |
+| add_label     | messages.modify addLabelIds        | add to `categories`                        | STORE +FLAGS keyword       |
+| remove_label  | messages.modify removeLabelIds     | remove from `categories`                   | STORE -FLAGS keyword       |
+| remove INBOX  | removeLabelIds ["INBOX"]           | move to a folder (Archive)                 | MOVE to `\\Archive`        |
+| trash         | messages.trash                     | move to Deleted Items (`/move` to folder)  | MOVE to `\\Trash`          |
+| draft         | drafts API                         | Drafts folder                              | APPEND to `\\Drafts`       |
 
 The asymmetry that shapes the interface: Gmail labels are many-per-message and
 orthogonal to location, Outlook folders are one-per-message. So "label" maps to
@@ -228,6 +228,12 @@ def _graph_write_session(interactive: bool | None = None):
     )
 
 
+def _imap_session():
+    from email_classifier.fetch import imap
+
+    return imap.build_session()
+
+
 def configured_mailbox(provider: str) -> str | None:
     """Which mailbox this host addresses under `provider`, or None when nothing names one.
 
@@ -250,6 +256,10 @@ def configured_mailbox(provider: str) -> str | None:
         from email_classifier.fetch import outlook
 
         return outlook.configured_mailbox()
+    if provider == "imap":
+        from email_classifier.fetch import imap
+
+        return imap.configured_mailbox()
     raise ValueError(f"no mailbox for email provider {provider!r}")
 
 
@@ -262,6 +272,10 @@ def get_fetcher(provider: str) -> Fetcher:
         from email_classifier.fetch import outlook
 
         return outlook.OutlookFetcher(_graph_session())
+    if provider == "imap":
+        from email_classifier.fetch import imap
+
+        return imap.ImapFetcher(_imap_session())
     raise ValueError(f"no fetcher for email provider {provider!r}")
 
 
@@ -269,7 +283,7 @@ def get_fetcher(provider: str) -> Fetcher:
 # reads full bodies, the thread's earlier turns and prior mail, and only Outlook
 # implements those three. So `drafts` on Gmail stops at `get_body_fetcher` rather
 # than at `get_drafter`, which Gmail does implement (STU-853).
-_DRAFTING_PROVIDERS = frozenset({"outlook"})
+_DRAFTING_PROVIDERS = frozenset({"outlook", "imap"})
 
 
 def can_draft(provider: str) -> bool:
@@ -281,12 +295,21 @@ def can_draft(provider: str) -> bool:
     return provider in _DRAFTING_PROVIDERS
 
 
-def get_body_fetcher(provider: str) -> BodyFetcher:
+def _drafting_reader(provider: str, role: str):
+    """The fetcher every drafting read goes through, on a provider that has them all."""
     if not can_draft(provider):
-        raise ValueError(f"no body fetcher for email provider {provider!r}")
+        raise ValueError(f"no {role} for email provider {provider!r}")
+    if provider == "imap":
+        from email_classifier.fetch import imap
+
+        return imap.ImapFetcher(_imap_session())
     from email_classifier.fetch import outlook
 
     return outlook.OutlookFetcher(_graph_session())
+
+
+def get_body_fetcher(provider: str) -> BodyFetcher:
+    return _drafting_reader(provider, "body fetcher")
 
 
 def get_reference_resolver(provider: str) -> ReferenceResolver:
@@ -300,19 +323,11 @@ def get_reference_resolver(provider: str) -> ReferenceResolver:
 
 
 def get_thread_reader(provider: str) -> ThreadReader:
-    if not can_draft(provider):
-        raise ValueError(f"no thread reader for email provider {provider!r}")
-    from email_classifier.fetch import outlook
-
-    return outlook.OutlookFetcher(_graph_session())
+    return _drafting_reader(provider, "thread reader")
 
 
 def get_precedent_searcher(provider: str) -> PrecedentSearcher:
-    if not can_draft(provider):
-        raise ValueError(f"no precedent searcher for email provider {provider!r}")
-    from email_classifier.fetch import outlook
-
-    return outlook.OutlookFetcher(_graph_session())
+    return _drafting_reader(provider, "precedent searcher")
 
 
 def get_writer(provider: str, interactive: bool | None = None) -> Writer:
@@ -328,6 +343,10 @@ def get_writer(provider: str, interactive: bool | None = None) -> Writer:
         from email_classifier.apply.outlook import OutlookWriter
 
         return OutlookWriter(_graph_write_session(interactive))
+    if provider == "imap":
+        from email_classifier.apply.imap.writer import ImapWriter
+
+        return ImapWriter(_imap_session())
     raise ValueError(f"no writer for email provider {provider!r}")
 
 
@@ -340,6 +359,10 @@ def get_drafter(provider: str) -> Drafter:
         from email_classifier.apply.outlook import OutlookDrafter
 
         return OutlookDrafter(_graph_write_session())
+    if provider == "imap":
+        from email_classifier.apply.imap.drafts import ImapDrafter
+
+        return ImapDrafter(_imap_session())
     raise ValueError(f"no drafter for email provider {provider!r}")
 
 
