@@ -1783,6 +1783,25 @@ Consequences, each one tested:
   reads and alerts when a reply went out with the marker. Gmail and IMAP do not mark:
   an IMAP keyword is an ASCII atom, so `ec/à-compléter` cannot be one, and a second
   ASCII spelling of the same marker is a vocabulary nobody reads there yet.
+- `email_classifier/apply/status.py`: one status category per conversation, on its
+  latest inbound message (STU-2007), under the policy flag `status_labels` and outside
+  `auto_apply`, since it moves nothing. With apply only planning, a draft in Drafts or
+  nothing was the whole trace, and nothing read the same as a failure. Six names:
+  `ec/brouillon` (a draft waits), `ec/à-compléter` (that draft carries the STU-2049
+  category), `ec/pas-de-réponse`, `ec/déjà-répondu` (a sent reply is newer than the mail,
+  or than the draft), `ec/à-toi` (a `content_hold`, or a reply the clamp dropped) and
+  `ec/erreur` (an undecided conversation, or a reply owed that has no draft and no sent
+  reply after drafting). The status is read off the mailbox once the drafting has run,
+  through `conversation_verdict`, never off what the stage claims. The write is a state
+  diff on these six names only: a human's category is never read or removed, the latest
+  message's previous status is replaced, the thread's older messages lose theirs, and a
+  message in the trash or elsewhere is left alone. Each write is journaled `ok` in the
+  run's `logs/applied/<run_id>.jsonl` even while apply plans into `.plan.jsonl`, so
+  `make undo RUN_ID=` takes the statuses off. The executor resolves only `ec/<bucket>`,
+  so a status never reads as a filing, and the webhook refuses to start on a taxonomy
+  whose bucket label would collide. Outlook only, refused at policy load elsewhere: an
+  IMAP keyword is an ASCII atom and these names are accented, and Gmail has no thread
+  reader.
 - `email_classifier/mail_link.py`: an Outlook web link to the id it names. Outlook
   writes a `conversationId` in the URL when the pane shows a thread and a message id when
   it shows a single message, in the same form, so the mailbox decides

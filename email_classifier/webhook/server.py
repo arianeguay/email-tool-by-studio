@@ -107,6 +107,7 @@ from email_classifier.anonymize import (
     sent_path,
     save_keymap,
 )
+from email_classifier.apply import status
 from email_classifier.apply.executor import apply_verdicts, render_summary
 from email_classifier.apply.journal import ApplyJournal, journal_path
 from email_classifier.audit_filing import file_unaudited
@@ -117,7 +118,7 @@ from email_classifier.fetch.grant import GrantLost
 from email_classifier.fetch import window
 from email_classifier.fetch.threads import expand_to_conversations
 from email_classifier.learn.store import VerdictStore, load_observations
-from email_classifier.orchestrate.drafts import reply_targets
+from email_classifier.orchestrate.drafts import content_hold, load_holds, reply_targets
 from email_classifier.orchestrate.drafts_runner import StudioCliDrafter
 from email_classifier.orchestrate.pipeline import run
 from email_classifier.orchestrate.provenance import (
@@ -263,6 +264,8 @@ def create_app(
     stage2=None,
     writer=None,
     drafts=None,
+    reply_drafter=None,
+    thread_reader=None,
     verify_token=None,
     graph_session=None,
     graph_client_state: str | None = None,
@@ -271,6 +274,7 @@ def create_app(
     learned_path: Path = REPO_ROOT / "rules" / "learned.yaml",
     policy_path: Path = REPO_ROOT / "rules" / "policy.yaml",
     taxonomy_path: Path = REPO_ROOT / "rules" / "taxonomy.yaml",
+    draft_holds_path: Path = REPO_ROOT / "rules" / "draft_holds.yaml",
     log_path: Path = REPO_ROOT / "logs" / "frontier.jsonl",
     verdict_store_path: Path = REPO_ROOT / "logs" / "verdicts.jsonl",
     keymap_path: Path = REPO_ROOT / "logs" / "anonymization" / "keymap.json",
@@ -301,6 +305,8 @@ def create_app(
     $PUBSUB_SERVICE_ACCOUNT). `writer` is the apply-path mailbox client — needed
     for a dry-run too, which reads labels to plan against. `drafts` runs the
     drafting pipeline; by default the Studio CLI, which no test should shell out to.
+    `reply_drafter` and `thread_reader` are the mailbox reads `status_labels` asks
+    after drafting (STU-2007), built only when the policy turns the flag on.
 
     GET /healthz is served whatever the enabled routes: it reports the age of the
     last notification received, against $WEBHOOK_STALE_AFTER_SECONDS, plus the
@@ -401,6 +407,22 @@ def create_app(
 
     if drafts is None:
         drafts = StudioCliDrafter(provider=studio_provider, cwd=REPO_ROOT)
+
+    if policy.status_labels:
+        clash = {f"ec/{b}" for b in taxonomy.buckets} & set(status.STATUS_LABELS)
+        if clash:
+            raise RuntimeError(f"bucket label(s) {sorted(clash)} collide with a status "
+                               "label: the executor would read a status as a filing")
+        if reply_drafter is None or thread_reader is None:
+            # Built here rather than through `providers`, whose factories read the
+            # headless flag from an environment this process never sets (STU-930).
+            from email_classifier.apply.outlook import OutlookDrafter
+            from email_classifier.fetch import outlook
+
+            session = outlook.build_session(scopes=outlook.WRITE_SCOPES, interactive=False)
+            reply_drafter = reply_drafter or OutlookDrafter(session)
+            thread_reader = thread_reader or outlook.OutlookFetcher(session)
+        holds = load_holds(draft_holds_path)
 
     if gmail_enabled:
         if verify_token is None:
@@ -637,6 +659,42 @@ def create_app(
             _log.error("run %s: %d verdicts failed to apply — see %s",
                        report.run_id, len(errors), journal.path)
 
+        try:
+            _draft(report, payload, report_path, email_dicts)
+        finally:
+            if policy.status_labels:
+                _write_statuses(report, payload, email_dicts)
+
+    def _write_statuses(report, payload, email_dicts: list[dict]) -> None:
+        """The reviewer's view of the run (STU-2007), read off the mailbox after drafting.
+
+        Under its own flag and outside `auto_apply`: it moves nothing. Journaled as real
+        writes in the run's own apply journal, whatever `auto_apply` says, so
+        `make undo RUN_ID=` takes the statuses off with the rest. Logged, never raised,
+        for the reason the apply and the drafting are.
+        """
+        snippets = {e["message_id"]: e.get("body_snippet") or "" for e in email_dicts}
+
+        def look(verdict):
+            draft_id = reply_drafter.find_draft(verdict.thread_id)
+            return status.ReplyState(
+                hold=content_hold(snippets.get(verdict.message_id, ""), holds),
+                draft=reply_drafter.get_draft(draft_id) if draft_id else None,
+                last_sent=thread_reader.last_sent_at(verdict.thread_id),
+            )
+
+        journal = ApplyJournal(
+            journal_path(journal_dir, report.run_id, dry_run=False), report.run_id)
+        try:
+            statuses = status.derive(payload, taxonomy, look)
+            failed = status.write(payload, statuses, writer, journal)
+        except Exception:
+            _log.exception("run %s: status labels not written", report.run_id)
+            return
+        _log.info("run %s: status labels on %d conversation(s), %d failure(s): see %s",
+                  report.run_id, len(statuses), failed, journal.path)
+
+    def _draft(report, payload, report_path: Path, email_dicts: list[dict]) -> None:
         # Drafts last, as in `mailbox-full` (STU-946): without this a notification
         # produces a verdict and nothing to send, and the drafting half of the product
         # is reachable only from a manual run. Not gated on `auto_apply` — the batch
