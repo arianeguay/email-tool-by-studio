@@ -977,6 +977,20 @@ def test_call_floor_exits_3_when_the_classify_leg_reports_more_than_the_journal(
     assert "classify: reported_calls 5" in result.stderr
 
 
+def test_call_floor_does_not_measure_a_push_classify_leg_against_its_drafting_journal(
+        tmp_path):
+    # STU-2059, run 03ddd0e1 on apollon: each push escalation is its own `studio run
+    # classify`, whose journal names no run of ours, so the only journal found is the
+    # drafting one. It holds no classify stage, and reading that as 0 calls exited 3.
+    result, payload = _floor(tmp_path, _drafting(), calls=2, classify=_spend(calls=1))
+    classify = _leg(payload, "classify")
+    assert result.returncode == 0
+    assert (classify["reported_calls"], classify["journal_calls"]) == (1, None)
+    assert classify["undercount"] is None
+    assert "classify: unmeasured" in result.stderr
+    assert _leg(payload, "drafts")["undercount"] == 0
+
+
 def test_call_floor_exits_2_when_no_journal_survives_the_run(tmp_path):
     # A floor with nothing to measure it against is not a floor known to be exact.
     reports, runs = _cost_tree(tmp_path, {"other.jsonl": _billed("r2")})
