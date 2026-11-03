@@ -62,6 +62,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--provider", default="anthropic",
                         help="Studio provider both arms run under. Empty to fall back "
                              "to defaults.provider.")
+    # `classify` runs one agent, so unlike the draft bake-off there is no reviewer to
+    # keep on the shared provider: the candidate's `--provider` is all that moves.
+    parser.add_argument("--candidate-provider",
+                        help="Provider for the candidate arm only, e.g. `ollama` for a "
+                             "local model scored against the hosted pin (STU-1767).")
     # Stage 2's production budget is 180s per conversation; a local model on Athena
     # needs ~90s per attempt, so one retry blows it. Raise it to score quality apart
     # from speed.
@@ -77,6 +82,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # this repo's own classifier agent and taxonomy skill, silently.
     parser.add_argument("--cwd", type=Path, default=REPO_ROOT)
     return parser.parse_args(argv)
+
+
+def arm_providers(args: argparse.Namespace) -> tuple[str, str]:
+    """The provider each arm runs under: baseline, then candidate."""
+    return args.provider, args.candidate_provider or args.provider
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -122,25 +132,30 @@ def main(argv: list[str] | None = None) -> int:
           f"{args.repeats} repeat(s) per arm | {args.baseline} vs {args.candidate}",
           file=sys.stderr)
 
-    def factory(model: str):
+    def factory(model: str, provider: str):
         return lambda fields: StudioCliClassifier(
             taxonomy=taxonomy,
-            provider=args.provider, cwd=args.cwd, anonymize_fields=fields, model=model,
+            provider=provider, cwd=args.cwd, anonymize_fields=fields, model=model,
             # A candidate model the API refuses is this pass's result, not an incident.
             alert_on_provider_failure=False,
             timeout=args.timeout,
         )
 
     arms = [
-        ab.run_arm(model, [], conversations, factory(model), args.repeats)
-        for model in (args.baseline, args.candidate)
+        ab.run_arm(model, [], conversations, factory(model, provider), args.repeats)
+        for model, provider in zip((args.baseline, args.candidate), arm_providers(args))
     ]
     result = classify_bakeoff.compare(arms[0], arms[1], golden)
     print(classify_bakeoff.render(result))
 
     out = args.out or default_out(args.limit)
     out.parent.mkdir(parents=True, exist_ok=True)
-    payload = classify_bakeoff.as_dict(result) | {"repeats": args.repeats}
+    baseline_provider, candidate_provider = arm_providers(args)
+    payload = classify_bakeoff.as_dict(result) | {
+        "repeats": args.repeats,
+        "provider": baseline_provider,
+        "candidate_provider": candidate_provider,
+    }
     if args.limit:
         payload["limit"] = args.limit
     out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

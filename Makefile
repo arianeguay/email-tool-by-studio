@@ -323,6 +323,7 @@ classify-bakeoff:    ## Score two classifier models on the deployment's escalate
 	$(PYTHON) scripts/classify_bakeoff.py $(PROVIDER_FLAG) \
 		--corpus $(SEED_CORPUS) --golden $(STAGE2_GOLDEN) \
 		--baseline $(CLASSIFY_BASELINE) --candidate $(CLASSIFY_CANDIDATE) \
+		$(if $(CANDIDATE_PROVIDER),--candidate-provider $(CANDIDATE_PROVIDER)) \
 		--repeats $(REPEATS) $(if $(LIMIT),--limit $(LIMIT)) $(if $(TIMEOUT),--timeout $(TIMEOUT))
 
 eval-ab:             ## A/B the anonymized arm against cleartext on the escalated subset (STU-837)
