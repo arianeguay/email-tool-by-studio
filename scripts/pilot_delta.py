@@ -22,7 +22,8 @@ from pathlib import Path
 KERNEL_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(KERNEL_ROOT))
 
-from email_classifier import draft_delta, pilot_delta  # noqa: E402
+from email_classifier import draft_delta, draft_pairing, pilot_delta  # noqa: E402
+from email_classifier.apply.journal import read_entries  # noqa: E402
 from email_classifier.pilot_gate import write_record  # noqa: E402
 from email_classifier import deployment  # noqa: E402
 
@@ -36,6 +37,10 @@ def parse_args(argv=None):
                         help="Directories holding the production reports.")
     parser.add_argument("--runs-dir", type=Path, nargs="+", default=[Path(".studio/runs")],
                         help="Directories holding the Studio journals behind them.")
+    parser.add_argument("--draft-journal", type=Path,
+                        default=Path("logs/drafts/journal.jsonl"),
+                        help="The shared per-draft journal: when each draft was written, "
+                             "which is what a draft is paired with the first send after.")
     parser.add_argument("--floor", type=int, default=10,
                         help="Conversations the carrying table needs before it is worth "
                              "reading. Under it the table still prints, saying so.")
@@ -94,13 +99,24 @@ def main(argv=None) -> int:
         from email_classifier.stage1.policy import load_policy
         provider = load_policy(REPO_ROOT / "rules/policy.yaml").email_provider
         reader = get_thread_reader(provider)
-        replies = reader.sent_replies(sorted(latest))
+        if not args.draft_journal.exists():
+            print(f"[ERROR] no drafts journal at {args.draft_journal}: it is the only "
+                  "record of when each draft was written", file=sys.stderr)
+            return 2
+        entries = read_entries(args.draft_journal)
+        by_run = {rnd.run_id: draft_pairing.write_times(entries, rnd.run_id)
+                  for rnd, _ in latest.values()}
+        written = {t: by_run[rnd.run_id][t] for t, (rnd, _) in latest.items()
+                   if t in by_run[rnd.run_id]}
+        replies = reader.sent_replies(dict(sorted(written.items())))
+        # Same rule as `audit_run.py reviewed`: no write time, no pairing and no score.
+        result["no_write_time"] = sorted(set(latest) - set(written))
         drafter = get_drafter(provider)
         still = {t for t in latest if drafter.find_draft(t)}
 
         tables = {}
         for name in pilot_delta.COHORTS:
-            bodies = by_cohort[name]
+            bodies = {t: b for t, b in by_cohort[name].items() if t in written}
             if not bodies:
                 # Not an empty table: a cohort nothing fell into has no reading, and a
                 # zeroed one would average into a comparison as though it did.

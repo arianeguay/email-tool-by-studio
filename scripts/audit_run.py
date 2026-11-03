@@ -15,6 +15,7 @@
     python scripts/audit_run.py call-floor [--report ...] [--studio-log .studio/runs/<log>.jsonl]
         [--drafts-log logs/drafts/stages.jsonl]
     python scripts/audit_run.py reviewed [--report ...] [--studio-log .studio/runs/<log>.jsonl ...]
+        [--draft-journal logs/drafts/journal.jsonl] [--facts]
         (reads the mailbox: what the reviewer sent against what the drafter wrote)
     python scripts/audit_run.py coverage [--reports reports] [--audit-log audits/audit_log.json]
     python scripts/audit_run.py skip --run <run-id> --reason "..." [--skipped audits/skipped.json]
@@ -716,6 +717,7 @@ def _own_legs(args, report: dict, run_id: str) -> dict[str, dict]:
 
 
 UNMATCHED_ITEM = "unmatched item"
+NO_WRITE_TIME = "no write time"
 
 
 def _reviewed(args, report_path: Path, report: dict) -> int:
@@ -736,7 +738,7 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     the drafter wrote before the rules existed. A figure that did not move is the
     finding, not something to explain away.
     """
-    from email_classifier import draft_delta
+    from email_classifier import draft_delta, draft_pairing
     from email_classifier.placeholder import flag_sent
     from email_classifier.providers import get_drafter, get_thread_reader
     from email_classifier.qa_bakeoff import drafts_from_journal
@@ -747,6 +749,10 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     # from here, and it is indistinguishable from a round nobody sent.
     mailbox = _assert_named_mailbox(report)
     run_id = report.get("run_id")
+    if not args.draft_journal.exists():
+        sys.exit(f"no drafts journal at {args.draft_journal}: it is the only record of "
+                 "when each draft was written, and a draft is paired with the first "
+                 "send after that instant")
     logs = args.studio_log or cost.find_logs(run_id, args.runs_dir)
     if not logs:
         sys.exit(f"no Studio journal under {', '.join(str(d) for d in args.runs_dir)} "
@@ -767,13 +773,18 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
             body = draft.draft.get("draft_body") or ""
             if draft.thread_id not in latest or draft.attempt >= latest[draft.thread_id][0]:
                 latest[draft.thread_id] = (draft.attempt, body)
-    drafted = {thread_id: body for thread_id, (_, body) in latest.items()}
-    if not drafted and not unmatched:
+    written = draft_pairing.write_times(_load_jsonl(args.draft_journal), run_id)
+    # A draft the journal never saw written has no instant to pair from: guessing one
+    # is how the newest send got compared, so it is a row and not a score.
+    untimed = {t for t in latest if t not in written}
+    drafted = {thread_id: body for thread_id, (_, body) in latest.items()
+               if thread_id not in untimed}
+    if not drafted and not unmatched and not untimed:
         sys.exit(f"no generate-draft output in {', '.join(str(p) for p in logs)}")
 
     provider = load_policy(Path("rules/policy.yaml")).email_provider
     reader = get_thread_reader(provider)
-    replies = reader.sent_replies(sorted(drafted))
+    replies = reader.sent_replies({t: written[t] for t in sorted(drafted)})
     # A draft still in the folder has not been judged; one that is gone with nothing
     # sent was judged and dropped. Merging them makes a review still under way read
     # as a round of bad drafts.
@@ -785,6 +796,7 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     unjoined = sum(1 for r in rows if r["similarity"] is None)
     summary = draft_delta.summarise(rows, list(drafted.values()), list(sent_bodies.values()))
     rows += [{"thread_id": t, "outcome": UNMATCHED_ITEM} for t in sorted(unmatched)]
+    rows += [{"thread_id": t, "outcome": NO_WRITE_TIME} for t in sorted(untimed)]
 
     print(json.dumps({
         "report": str(report_path),
@@ -793,11 +805,13 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
         # Named rather than assumed: the join is what this whole reading rests on, and
         # on this mailbox `conversationId` is exactly the key that has failed before.
         "join_key": "conversationId",
+        "join_rule": "first send after the draft's last write in the drafts journal",
         # Which store that key was resolved in, or null where the report predates the
         # field: an unjoined row means something different in each case.
         "mailbox": mailbox,
         "unjoined": unjoined,
         "unmatched_items": len(unmatched),
+        "no_write_time": len(untimed),
         # A parent received the drafter's `[À COMPLÉTER` marker (STU-2049).
         "sent_with_placeholder": sent_with_placeholder,
         **summary,

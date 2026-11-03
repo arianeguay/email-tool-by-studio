@@ -11,6 +11,7 @@ Sieve rule filed, is not this app's to read or touch, exactly as Outlook's
 from datetime import datetime
 from email.message import EmailMessage
 
+from email_classifier import draft_pairing
 from email_classifier.fetch.imap import projection
 from email_classifier.fetch.imap.session import INBOX, ImapSession, RawMessage
 from email_classifier.providers import trashed_by_us
@@ -164,15 +165,15 @@ class ImapFetcher:
         return max((projection.iso_date(raw.received) for raw in self._sent(thread_id)),
                    default=None)
 
-    def sent_replies(self, thread_ids: list[str]) -> dict[str, dict]:
+    def sent_replies(self, written_at: dict[str, str]) -> dict[str, dict]:
         replies = {}
-        for thread_id in thread_ids:
-            sent = self._sent(thread_id)
-            if sent:
-                newest = max(sent, key=lambda raw: raw.received)
+        for thread_id, at in written_at.items():
+            first = draft_pairing.first_send_after(
+                self._sent(thread_id), at, lambda raw: projection.iso_date(raw.received))
+            if first is not None:
                 replies[thread_id] = {
-                    "sent_at": projection.iso_date(newest.received),
-                    "body": projection.message_body(projection.parse(newest.raw)),
+                    "sent_at": projection.iso_date(first.received),
+                    "body": projection.message_body(projection.parse(first.raw)),
                 }
         return replies
 

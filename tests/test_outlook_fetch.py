@@ -389,6 +389,24 @@ def test_a_conversation_the_club_never_replied_to_has_no_last_reply():
     assert outlook.OutlookFetcher(session).last_sent_at("t1") is None
 
 
+def test_a_draft_is_paired_with_the_first_send_after_it_not_the_newest():
+    """STU-1998: the newest send often answers a later question."""
+    session = _Conversation(
+        {
+            "old": ("2026-06-01T09:00:00Z", "Une vieille reponse."),
+            "reply": ("2026-06-10T18:00:00Z", "Les pratiques sont le mardi."),
+            "later": ("2026-06-20T18:00:00Z", "Le tournoi est en juillet."),
+        },
+        sent_ids=["old", "later", "reply"],
+    )
+    fetcher = outlook.OutlookFetcher(session)
+
+    replies = fetcher.sent_replies({"t1": "2026-06-10T12:00:00+00:00"})
+    assert replies["t1"] == {"sent_at": "2026-06-10T18:00:00+00:00",
+                             "body": "Les pratiques sont le mardi."}
+    assert fetcher.sent_replies({"t1": "2026-06-21T00:00:00+00:00"}) == {}
+
+
 # ── a conversation's live message ids (STU-963) ──────────────────────────────
 
 def test_a_conversation_lists_every_message_the_mailbox_still_holds():
