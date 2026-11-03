@@ -393,3 +393,29 @@ def test_sent_since_reads_the_sent_folder_only_and_skips_drafts(imap):
     replies = ImapFetcher(_session(imap)).sent_since("2026-09-18T00:00:00+00:00")
 
     assert replies == [{"date": "2026-09-18T15:00:00+00:00", "body": "Voici les dates."}]
+
+
+def test_a_senders_read_history_spans_the_folders_this_app_files_to(imap):
+    imap.add("INBOX", _mail("m1", sender="Shop <news@shop.example>"))
+    imap.add("Archive", _mail("m2", sender="news@shop.example"), flags=["\\Seen"])
+    imap.add("Trash", _mail("m3", sender="news@shop.example"))
+    imap.add("INBOX", _mail("m4", sender="old-news@shop.example"), flags=["\\Seen"])
+    imap.add("Factures", _mail("m5", sender="news@shop.example"), flags=["\\Seen"])
+
+    seen = ImapWriter(_session(imap)).seen_from("news@shop.example")
+
+    assert sorted(seen) == [False, False, True]
+
+
+def test_the_unsubscribe_reads_sender_and_headers_without_marking_seen(imap):
+    imap.add("INBOX", _mail("m1", sender="Shop <News@Shop.example>", extra={
+        "List-Unsubscribe": "<https://shop.example/u>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    }))
+    writer = ImapWriter(_session(imap))
+
+    sender, headers = writer.sender_and_headers("m1")
+
+    assert sender == "news@shop.example"
+    assert headers["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+    assert imap.where("m1")[1]["flags"] == set()
+    assert writer.sender_and_headers("gone") is None

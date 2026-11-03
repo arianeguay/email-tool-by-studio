@@ -36,7 +36,9 @@ A deployment directory holds:
 
 - `rules/policy.yaml`: what may run unattended, the anonymization scope, `language`
   (a lang pack), `timezone`, `vouched_skill` (the skill whose published names are never
-  redacted) and `envelope_rewriters` (modules that register a reply-target rewriter).
+  redacted), `envelope_rewriters` (modules that register a reply-target rewriter) and
+  `auto_unsubscribe` (one-click unsubscribe from unread bulk senders, IMAP only, off by
+  default).
 - `rules/taxonomy.yaml`, `rules/rules.yaml`, `rules/web_sources.yaml`, and optionally
   `rules/voice.yaml` (archive-measured voice baselines).
 - `.studio/agents/`, `.studio/skills/`, `.studio/config.yaml`, with `contracts`,

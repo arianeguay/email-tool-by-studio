@@ -75,6 +75,7 @@ the journal too, and the batch continues.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from email_classifier.apply.journal import ApplyJournal, Operation
 from email_classifier.core.contract import Taxonomy
@@ -115,6 +116,7 @@ def plan_operations(
     in_trash: bool = False,
     applied_deleted: bool = False,
     filed_elsewhere: bool = False,
+    expired: bool = False,
 ) -> tuple[str, list[Operation]]:
     """One message's operations under its conversation's verdict. Pure — no I/O.
 
@@ -153,12 +155,19 @@ def plan_operations(
     is in none of the three folders this app writes to. Nothing in that state is
     ours to move — the message is either gone from the mailbox as live mail, or
     filed by a human, and neither is undone by an archive.
+
+    `expired` is the conversation's rule expiry having passed (STU-2070): it turns
+    the verdict into an archive, past any clamp, since the rule's author asked for
+    exactly that. Only a message still in the Inbox, or one we already filed: out of
+    the Inbox with no bucket of ours, a human moved it, and that move stands.
     """
     action = decision.suggested_action
     # `apply_verdicts` turns this away earlier so the message is not stamped either;
     # the plan says it too, for the reason somebody else's trash does below.
     if filed_elsewhere:
         return "none", []
+    if expired and action != "mark_for_delete" and (in_inbox or applied_bucket):
+        action = "label_archive"
     if action == "mark_for_delete" and action not in policy.destructive_actions_allowed:
         action = "label_archive"
 
@@ -214,7 +223,9 @@ def apply_verdicts(
     journal: ApplyJournal,
     taxonomy: Taxonomy,
     dry_run: bool = True,
+    now: datetime | None = None,
 ) -> list[ApplyOutcome]:
+    now = now or datetime.now(timezone.utc)
     label_ids = {_INBOX: _INBOX}
     marker_id = (
         writer.find_label(PROCESSED_LABEL) if dry_run else writer.ensure_label(PROCESSED_LABEL)
@@ -273,6 +284,7 @@ def apply_verdicts(
                 for v in messages
             )
             continue
+        expired = bool(decision.expires_at) and datetime.fromisoformat(decision.expires_at) <= now
         for v in messages:
             current = Operation("plan")
             try:
@@ -300,7 +312,7 @@ def apply_verdicts(
                     continue
                 name, operations = plan_operations(
                     decision, policy, applied_bucket, _INBOX in carried,
-                    _TRASH in carried, applied_deleted, _ELSEWHERE in carried,
+                    _TRASH in carried, applied_deleted, _ELSEWHERE in carried, expired,
                 )
                 # A converged message is done. The trash is no longer an exception:
                 # `label_ids` reports it, so a trashed message diffs like any other.
@@ -330,6 +342,36 @@ def apply_verdicts(
                 journal.record(v.message_id, decision.rule_id, current, "error", detail)
                 outcomes.append(ApplyOutcome(v.message_id, "error", None, detail))
     return outcomes
+
+
+def expired_threads(
+    reports: list[dict], skip_threads: set[str], now: datetime
+) -> list[EmailVerdict]:
+    """Every message of each earlier conversation whose rule expiry has passed (STU-2070).
+
+    A run's fetch reaches back to its floor and no further, so a code that expires
+    tomorrow is in no report tomorrow's run writes. Its expiry lives in the report
+    that decided it; each conversation is taken from the report that holds its most
+    recent message, and `skip_threads` (the current report's) wins over all of them.
+    """
+    def latest(messages: list[EmailVerdict]) -> EmailVerdict:
+        return max(messages, key=lambda m: (m.date, m.message_id))
+
+    newest: dict[str, list[EmailVerdict]] = {}
+    for report in reports:
+        verdicts = [EmailVerdict(**v) for v in report["verdicts"]]
+        for thread_id, messages in conversation.group(verdicts).items():
+            held = newest.get(thread_id)
+            if thread_id not in skip_threads and (
+                held is None or latest(messages).date > latest(held).date
+            ):
+                newest[thread_id] = messages
+    return [
+        v
+        for messages in newest.values()
+        if (expiry := latest(messages).expires_at) and datetime.fromisoformat(expiry) <= now
+        for v in messages
+    ]
 
 
 def render_summary(outcomes: list[ApplyOutcome], dry_run: bool) -> str:

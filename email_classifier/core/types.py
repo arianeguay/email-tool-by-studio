@@ -27,6 +27,8 @@ class RuleMatch:
     action_original: str | None
     confidence: str
     bucket: str | None
+    # When the rule's `expires_after` runs out, counted from the message's date (STU-2070).
+    expires_at: str = ""
 
 
 @dataclass

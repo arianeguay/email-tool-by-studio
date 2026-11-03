@@ -76,7 +76,8 @@ def main(argv=None) -> int:
     print(f"[pilot-delta] {len(rounds)} report(s) | rules commit {pilot_delta.RULES_COMMIT}",
           file=sys.stderr)
 
-    drafted = pilot_delta.drafted_by_round(rounds, args.runs_dir)
+    unmatched: set[str] = set()
+    drafted = pilot_delta.drafted_by_round(rounds, args.runs_dir, unmatched)
 
     latest = pilot_delta.latest_drafting_round(drafted)
     scored_rounds = [rnd for rnd, _ in latest.values()]
@@ -90,6 +91,7 @@ def main(argv=None) -> int:
 
     result = {"reports": len(rounds), "conversations": len(latest), "coverage": cover,
               "conversations_by_cohort": {n: len(by_cohort[n]) for n in pilot_delta.COHORTS},
+              "unmatched_drafts": sorted(unmatched),
               "archive": draft_delta.ARCHIVE, "round_before": draft_delta.ROUND_BEFORE}
 
     if args.offline:

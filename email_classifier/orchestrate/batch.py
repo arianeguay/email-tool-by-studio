@@ -230,6 +230,7 @@ def deterministic_verdict(record: dict) -> EmailVerdict:
         reasoning=None,
         error=None,
         date=record["date"],
+        expires_at=record.get("expires_at", ""),
     )
 
 

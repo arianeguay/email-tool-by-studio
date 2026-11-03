@@ -694,6 +694,16 @@ Consequences, each one tested:
   left the Inbox: a `make apply RUN_ID=<an older run>` (which is what a rollback or a
   resume looks like) planned an archive with no move, stamped `ec/<bucket>` on mail in the
   dumpster, and journalled every operation `ok`.
+  A stage-1 rule may carry `expires_after` (`30m`, `1h`, `2d`: a count and one of `m`, `h`,
+  `d`), and its verdict then records `expires_at`, the message date plus that duration
+  (STU-2070). Once the expiry of a conversation's most recent message has passed, apply
+  archives it with `label_archive`, past the bucket's clamp, since archiving is what the
+  rule asked for. Only from the Inbox, or a message we already filed: one a human moved out
+  with no `ec/<bucket>` of ours stays where they put it. A fetch reaches back to its floor
+  and no further, so the `mailbox-full` apply stage (`scripts/apply_report.py`) also reads
+  every other report next to its own for conversations whose expiry has passed, each taken
+  from the report holding its most recent message. The archive is journaled by the current
+  run, and `undo` of that run reverts it. A rule without `expires_after` behaves as before.
 
 - `email_classifier/webhook/`: push endpoints (classification on notification, Gmail and
   Outlook), with both stage 2 passes (classify and drafts) under the single
@@ -1843,6 +1853,19 @@ Consequences, each one tested:
   whose bucket label would collide. Outlook only, refused at policy load elsewhere: an
   IMAP keyword is an ASCII atom and these names are accented, and Gmail has no thread
   reader.
+- `email_classifier/apply/unsubscribe.py`: one-click unsubscribe from bulk senders the
+  owner never reads (STU-2071), under the policy flag `auto_unsubscribe` (off by
+  default), run by `apply_email.py run` and the `mailbox-full` apply stage right after the
+  executor. A sender qualifies when one of the run's messages from it is an `ok` verdict
+  in bucket C carrying `List-Unsubscribe-Post: List-Unsubscribe=One-Click` and an `https`
+  URI in `List-Unsubscribe`, and the Inbox, Archive and Trash together hold at least two
+  messages from that exact address with no `\Seen` flag on any of them. Only the RFC
+  8058 POST goes out, redirects refused: a `mailto:` would send mail as the owner and a
+  GET is a page visit. Each sender is posted to once whatever the answer, journaled
+  (`sender`, `host`, `status`, `run_id`) in the deployment's `logs/unsubscribed.jsonl`,
+  which is what the next run reads to skip it. A dry-run names the senders and posts
+  nothing. The apply summary and the stage's `unsubscribed` output list them. IMAP only,
+  refused at policy load elsewhere: it is the one writer that reads a sender's history.
 - `email_classifier/mail_link.py`: an Outlook web link to the id it names. Outlook
   writes a `conversationId` in the URL when the pane shows a thread and a message id when
   it shows a single message, in the same form, so the mailbox decides
