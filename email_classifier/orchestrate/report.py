@@ -32,6 +32,9 @@ class EmailVerdict:
     # The message's own date, so a conversation can be reconciled by recency without
     # re-reading the corpus (STU-940). Empty on a report written before that field.
     date: str = ""
+    # The instant the matching rule's `expires_after` runs out (STU-2070); empty when
+    # the rule sets none, and on every stage-2 verdict.
+    expires_at: str = ""
 
 
 @dataclass

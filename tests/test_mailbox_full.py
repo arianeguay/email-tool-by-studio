@@ -438,6 +438,36 @@ def test_a_failed_operation_fails_the_stage(apply_report, monkeypatch, tmp_path,
     assert {e["status"] for e in read_entries(tmp_path / "applied" / "run-1.jsonl")} == {"ok", "error"}
 
 
+def test_apply_archives_an_expired_conversation_an_earlier_report_decided(
+    apply_report, monkeypatch, tmp_path, capsys
+):
+    """Tomorrow's fetch does not reach back to today's code (STU-2070): its expiry is
+    read from the report that decided it, and the archive is journaled by this run."""
+    writer = inboxed(FakeWriter(), "m1", "old")
+    monkeypatch.setattr(apply_report, "get_writer", lambda provider: writer)
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    (reports / "run-0.json").write_text(json.dumps({"run_id": "run-0", "verdicts": [{
+        "message_id": "old", "thread_id": "t-old", "path": "deterministic",
+        "status": "ok", "bucket": "A", "suggested_action": "keep_visible",
+        "confidence": "high", "rule_id": "code", "subtype": None, "reasoning": None,
+        "error": None, "date": "2026-01-01T08:00:00+00:00",
+        "expires_at": "2026-01-01T09:00:00+00:00",
+    }]}), encoding="utf-8")
+    current = write_report(tmp_path).rename(reports / "run-1.json")
+
+    run_stage(
+        apply_report,
+        {"report": str(current), "journal_dir": str(tmp_path / "applied"),
+         "policy": str(write_policy(tmp_path, "gmail")), "apply": True},
+        monkeypatch, capsys,
+    )
+
+    assert writer.labels_of("old") == {"ec/A", PROCESSED_LABEL}
+    journaled = {e["message_id"] for e in read_entries(tmp_path / "applied" / "run-1.jsonl")}
+    assert journaled == {"m1", "old"}
+
+
 # ── wiring ───────────────────────────────────────────────────────────────────
 
 def load_pipeline(name):

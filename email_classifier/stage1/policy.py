@@ -209,5 +209,6 @@ def filter_action(match: RuleMatch, policy: Policy) -> RuleMatch:
             action_original=match.action,
             confidence=match.confidence,
             bucket=match.bucket,
+            expires_at=match.expires_at,
         )
     return match

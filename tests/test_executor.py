@@ -6,11 +6,18 @@ verdicts twice against the same fake mailbox. These tests drive the real-apply
 path (dry_run=False); the dry-run default is covered in test_apply_journal.py.
 """
 
+from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from email_classifier.apply.executor import PROCESSED_LABEL, apply_verdicts, render_summary
+from email_classifier.apply.executor import (
+    PROCESSED_LABEL,
+    apply_verdicts,
+    expired_threads,
+    render_summary,
+)
 from email_classifier.core.contract import load_taxonomy
 from email_classifier.providers import DELETED_LABEL
 from email_classifier.apply.journal import ApplyJournal, read_entries
@@ -26,7 +33,7 @@ TAXONOMY = load_taxonomy(deployment.ROOT / "rules" / "taxonomy.yaml")
 
 def verdict(message_id="m1", path="deterministic", status="ok", bucket="B",
             action="label_archive", confidence="high", error=None, thread_id=None,
-            date="2026-08-18T12:00:00+00:00", rule_id="r1"):
+            date="2026-08-18T12:00:00+00:00", rule_id="r1", expires_at=""):
     """One message in a conversation of its own, unless a `thread_id` is shared.
 
     Apply reconciles per conversation (STU-940), so a shared thread id here would make
@@ -37,6 +44,7 @@ def verdict(message_id="m1", path="deterministic", status="ok", bucket="B",
         message_id=message_id, thread_id=thread_id or f"t_{message_id}", path=path,
         status=status, bucket=bucket, suggested_action=action, confidence=confidence,
         rule_id=rule_id, subtype=None, reasoning=None, error=error, date=date,
+        expires_at=expires_at,
     )
 
 
@@ -663,3 +671,130 @@ def test_a_human_restoring_an_archived_message_we_deleted_is_not_overruled(journ
 
     assert [(o.status, o.operation) for o in outcomes] == [("skipped_processed", None)]
     assert writer.trashed == []
+
+
+# --- Rule expiry (STU-2070) ----------------------------------------------------
+#
+# A rule's `expires_after` lands on the verdict as `expires_at`. Once that instant
+# passes, the conversation archives, whatever its action was and whatever its bucket
+# allows, unless a human already took it out of the Inbox.
+
+NOW = datetime(2026, 8, 18, 15, 0, tzinfo=timezone.utc)
+PAST = "2026-08-18T13:00:00+00:00"
+FUTURE = "2026-08-18T17:00:00+00:00"
+
+
+def code(expires_at=PAST, **kwargs):
+    return verdict("m1", bucket="A", action="keep_visible", rule_id="code",
+                   expires_at=expires_at, **kwargs)
+
+
+def apply_at(verdicts, writer, journal, dry_run=False):
+    return apply_verdicts(
+        verdicts, writer, make_policy(), journal, TAXONOMY, dry_run=dry_run, now=NOW
+    )
+
+
+def test_an_expired_inbox_message_is_planned_for_archive(journal):
+    writer = inboxed(FakeWriter(), "m1")
+
+    outcomes = apply_at([code()], writer, journal, dry_run=True)
+
+    assert [(o.status, o.operation) for o in outcomes] == [("planned", "archive")]
+    assert [(e["op"], e.get("label")) for e in read_entries(journal.path)] == [
+        ("remove_label", "INBOX"), ("add_label", "ec/A"), ("add_label", PROCESSED_LABEL),
+    ]
+    assert writer.labels_of("m1") == {"INBOX"}
+
+
+def test_an_unexpired_inbox_message_stays_visible(journal):
+    writer = inboxed(FakeWriter(), "m1")
+
+    outcomes = apply_at([code(expires_at=FUTURE)], writer, journal)
+
+    assert [(o.status, o.operation) for o in outcomes] == [("applied", "none")]
+    assert writer.labels_of("m1") == {"INBOX", PROCESSED_LABEL}
+
+
+def test_an_expiry_archives_a_message_an_earlier_run_kept_visible(journal):
+    writer = inboxed(FakeWriter(), "m1")
+    apply_at([code(expires_at=FUTURE)], writer, journal)
+
+    outcomes = apply_at([code()], writer, journal)
+
+    assert [(o.status, o.operation) for o in outcomes] == [("applied", "archive")]
+    assert writer.labels_of("m1") == {"ec/A", PROCESSED_LABEL}
+
+
+def test_an_expired_message_already_archived_is_left_alone(journal):
+    writer = inboxed(FakeWriter(), "m1")
+    apply_at([code()], writer, journal)
+
+    outcomes = apply_at([code()], writer, journal)
+
+    assert [o.status for o in outcomes] == ["skipped_processed"]
+    assert writer.labels_of("m1") == {"ec/A", PROCESSED_LABEL}
+
+
+def test_a_message_a_human_moved_out_of_the_inbox_is_not_touched(journal):
+    writer = inboxed(FakeWriter(), "m1")
+    apply_at([code(expires_at=FUTURE)], writer, journal)
+    writer.message_labels["m1"].discard("INBOX")  # the human archives it themselves
+
+    outcomes = apply_at([code()], writer, journal)
+
+    assert [o.status for o in outcomes] == ["skipped_processed"]
+    assert writer.labels_of("m1") == {PROCESSED_LABEL}
+
+
+def test_the_expiry_of_the_latest_message_decides_the_conversation(journal):
+    """A reply after the code is a claim about now that carries no expiry."""
+    writer = inboxed(FakeWriter(), "m1", "m2")
+    verdicts = [
+        thread("m1", "2026-08-18T09:00:00+00:00", "A", "keep_visible", expires_at=PAST),
+        thread("m2", "2026-08-18T10:00:00+00:00", "A", "keep_visible"),
+    ]
+
+    outcomes = apply_at(verdicts, writer, journal)
+
+    assert [o.operation for o in outcomes] == ["none", "none"]
+    assert "INBOX" in writer.labels_of("m1")
+
+
+def test_undo_restores_an_expiry_archive(journal, tmp_path):
+    writer = inboxed(FakeWriter(), "m1")
+    apply_at([code(expires_at=FUTURE)], writer, journal)
+    before = set(writer.labels_of("m1"))
+    expiry = ApplyJournal(tmp_path / "applied" / "later.jsonl", "later")
+
+    apply_at([code()], writer, expiry)
+    undo_entries(
+        read_entries(expiry.path), writer, ApplyJournal(tmp_path / "undo.jsonl", "later")
+    )
+
+    assert writer.labels_of("m1") == before
+
+
+def report(*verdicts):
+    return {"verdicts": [asdict(v) for v in verdicts]}
+
+
+def test_expired_threads_reads_back_an_earlier_reports_expired_conversation():
+    expired = code()
+    kept = verdict("m2", bucket="A", action="keep_visible", expires_at=FUTURE)
+    plain = verdict("m3", bucket="A", action="keep_visible")
+
+    assert expired_threads([report(expired, kept, plain)], set(), NOW) == [expired]
+
+
+def test_expired_threads_leaves_the_current_reports_conversations_to_it():
+    assert expired_threads([report(code())], {"t_m1"}, NOW) == []
+
+
+def test_expired_threads_takes_a_conversation_from_its_newest_report():
+    """A reply an earlier run classified with the code supersedes the code's expiry."""
+    opener = thread("m1", "2026-08-18T09:00:00+00:00", "A", "keep_visible", expires_at=PAST)
+    reply = thread("m2", "2026-08-18T10:00:00+00:00", "A", "keep_visible")
+
+    assert expired_threads([report(opener, reply), report(opener)], set(), NOW) == []
+    assert expired_threads([report(opener), report(opener, reply)], set(), NOW) == []

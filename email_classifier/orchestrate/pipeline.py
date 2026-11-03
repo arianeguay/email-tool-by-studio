@@ -68,6 +68,7 @@ def _deterministic_verdict(email: EmailInput, match: RuleMatch) -> EmailVerdict:
         reasoning=None,
         error=None,
         date=email.date,
+        expires_at=match.expires_at,
     )
 
 
