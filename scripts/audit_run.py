@@ -715,6 +715,9 @@ def _own_legs(args, report: dict, run_id: str) -> dict[str, dict]:
     return legs
 
 
+UNMATCHED_ITEM = "unmatched item"
+
+
 def _reviewed(args, report_path: Path, report: dict) -> int:
     """What the reviewer did to each draft before sending it (STU-1100).
 
@@ -751,13 +754,21 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
                  "the draft left the mailbox when it was sent")
 
     latest: dict[str, tuple[int, str]] = {}
+    # A draft whose thread no drafts-pre item carries (STU-2061): the drafter echoes the
+    # thread id and can mis-copy it, so the id names no conversation Graph could join.
+    # It is still a draft the reviewer saw, so it is a row, not a traceback.
+    unmatched: set[str] = set()
     for path in logs:
-        for draft in drafts_from_journal(Path(path).read_text(encoding="utf-8").splitlines()):
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+        for draft in drafts_from_journal(lines, strict=False):
+            if draft.item is None:
+                unmatched.add(draft.thread_id)
+                continue
             body = draft.draft.get("draft_body") or ""
             if draft.thread_id not in latest or draft.attempt >= latest[draft.thread_id][0]:
                 latest[draft.thread_id] = (draft.attempt, body)
     drafted = {thread_id: body for thread_id, (_, body) in latest.items()}
-    if not drafted:
+    if not drafted and not unmatched:
         sys.exit(f"no generate-draft output in {', '.join(str(p) for p in logs)}")
 
     provider = load_policy(Path("rules/policy.yaml")).email_provider
@@ -771,6 +782,9 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     sent_bodies = {t: r["body"] for t, r in replies.items()}
     rows = draft_delta.compare(drafted, sent_bodies, still)
     sent_with_placeholder = flag_sent(sent_bodies)
+    unjoined = sum(1 for r in rows if r["similarity"] is None)
+    summary = draft_delta.summarise(rows, list(drafted.values()), list(sent_bodies.values()))
+    rows += [{"thread_id": t, "outcome": UNMATCHED_ITEM} for t in sorted(unmatched)]
 
     print(json.dumps({
         "report": str(report_path),
@@ -782,10 +796,11 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
         # Which store that key was resolved in, or null where the report predates the
         # field: an unjoined row means something different in each case.
         "mailbox": mailbox,
-        "unjoined": sum(1 for r in rows if r["similarity"] is None),
+        "unjoined": unjoined,
+        "unmatched_items": len(unmatched),
         # A parent received the drafter's `[À COMPLÉTER` marker (STU-2049).
         "sent_with_placeholder": sent_with_placeholder,
-        **draft_delta.summarise(rows, list(drafted.values()), list(sent_bodies.values())),
+        **summary,
         "rows": rows,
     }, indent=2, ensure_ascii=False))
     return 0
