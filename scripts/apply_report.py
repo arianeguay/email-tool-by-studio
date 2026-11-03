@@ -15,7 +15,7 @@ A failed operation exits non-zero: the parent run fails rather than reporting a
 success over a partial apply. The journal on disk holds what did happen.
 
 Input:  { "report": "<report path>", "apply": true|false }
-Output: { "run_id", "report_path", "journal_path", "dry_run", "acted" }
+Output: { "run_id", "report_path", "journal_path", "dry_run", "acted", "unsubscribed" }
 """
 
 import json
@@ -27,6 +27,7 @@ import yaml
 
 from email_classifier.apply.executor import apply_verdicts, expired_threads, render_summary
 from email_classifier.apply.journal import ApplyJournal, journal_path
+from email_classifier.apply import unsubscribe
 from email_classifier.core.contract import load_taxonomy
 from email_classifier.orchestrate.report import EmailVerdict
 from email_classifier.providers import get_writer, preflight_write
@@ -64,12 +65,15 @@ def main() -> None:
     journal_dir = REPO_ROOT / ctx.get("journal_dir", "logs/applied")
     journal = ApplyJournal(journal_path(journal_dir, report["run_id"], dry_run=dry_run),
                            report["run_id"])
+    writer = get_writer(policy.email_provider)
     outcomes = apply_verdicts(
-        verdicts, get_writer(policy.email_provider), policy, journal, taxonomy,
-        dry_run=dry_run, now=now,
+        verdicts, writer, policy, journal, taxonomy, dry_run=dry_run, now=now,
     )
+    unsubscribed = unsubscribe.unsubscribe(verdicts, writer, policy, report["run_id"], dry_run=dry_run)
 
     print(render_summary(outcomes, dry_run=dry_run), file=sys.stderr)
+    if policy.auto_unsubscribe:
+        print(unsubscribe.render_summary(unsubscribed, dry_run=dry_run), file=sys.stderr)
     print(f"\nJournal written to {journal.path}", file=sys.stderr)
 
     errors = [o for o in outcomes if o.status == "error"]
@@ -83,6 +87,7 @@ def main() -> None:
         "journal_path": str(journal.path),
         "dry_run": dry_run,
         "acted": sum(1 for o in outcomes if o.status == acted),
+        "unsubscribed": unsubscribed,
     }, sys.stdout, ensure_ascii=False)
 
 
