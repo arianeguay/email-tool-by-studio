@@ -142,6 +142,7 @@ def main() -> None:
             "action_original": match.action_original,
             "confidence": match.confidence,
             "bucket": match.bucket,
+            "expires_at": match.expires_at,
             "escalated": match.action == _ESCALATE,
         })
 

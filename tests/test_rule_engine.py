@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 import yaml
 from pathlib import Path
@@ -392,4 +394,48 @@ rules:
     rules_file = tmp_path / "rules.yaml"
     rules_file.write_text(yaml_content)
     with pytest.raises(ValueError, match="unknown guard"):
+        load_rules(rules_file)
+
+
+# --- expires_after (STU-2070) --------------------------------------------------
+
+
+def test_expires_after_counts_from_the_message_date():
+    rules = _rules(
+        Rule(id="code", conditions={"from_domain": "example.com"}, bucket="A",
+             confidence="high", action="keep_visible", expires_after=timedelta(hours=1)),
+    )
+    match = apply(_make_email(), rules)
+    assert match.expires_at == "2026-06-10T15:30:00+00:00"
+
+
+def test_a_rule_without_expires_after_never_expires():
+    match = apply(_make_email(), _rules())
+    assert match.expires_at == ""
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("30m", timedelta(minutes=30)), ("1h", timedelta(hours=1)), ("2d", timedelta(days=2)),
+])
+def test_load_rules_reads_expires_after(tmp_path: Path, value, expected):
+    rules_file = tmp_path / "rules.yaml"
+    rules_file.write_text(yaml.dump({"rules": [
+        {"id": "code", "conditions": {"from_domain": "example.com"}, "bucket": "A",
+         "confidence": "high", "action": "keep_visible", "expires_after": value},
+        {"id": "catch_all", "conditions": {}, "bucket": None, "confidence": "low",
+         "action": "escalate_to_llm"},
+    ]}))
+    assert load_rules(rules_file)[0].expires_after == expected
+
+
+@pytest.mark.parametrize("value", ["2 days", "1w", "h", 5, "-1h"])
+def test_load_rules_raises_on_malformed_expires_after(tmp_path: Path, value):
+    rules_file = tmp_path / "rules.yaml"
+    rules_file.write_text(yaml.dump({"rules": [
+        {"id": "code", "conditions": {"from_domain": "example.com"}, "bucket": "A",
+         "confidence": "high", "action": "keep_visible", "expires_after": value},
+        {"id": "catch_all", "conditions": {}, "bucket": None, "confidence": "low",
+         "action": "escalate_to_llm"},
+    ]}))
+    with pytest.raises(ValueError, match="expires_after"):
         load_rules(rules_file)

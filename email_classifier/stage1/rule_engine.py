@@ -1,4 +1,6 @@
+import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -19,6 +21,23 @@ class Rule:
     bucket: str | None
     confidence: str
     action: str
+    expires_after: timedelta | None = None
+
+
+_DURATION = re.compile(r"(\d+)([mhd])")
+_UNITS = {"m": "minutes", "h": "hours", "d": "days"}
+
+
+def _duration(rule_id: str, value) -> timedelta | None:
+    if value is None:
+        return None
+    found = _DURATION.fullmatch(str(value))
+    if not found:
+        raise ValueError(
+            f"Rule '{rule_id}': 'expires_after' must be a count and a unit (m, h or d), "
+            f"like 1h or 2d, got {value!r}"
+        )
+    return timedelta(**{_UNITS[found[2]]: int(found[1])})
 
 
 def _parse_rules(path: Path) -> list[Rule]:
@@ -30,6 +49,7 @@ def _parse_rules(path: Path) -> list[Rule]:
             bucket=r.get("bucket"),
             confidence=r["confidence"],
             action=r["action"],
+            expires_after=_duration(r["id"], r.get("expires_after")),
         )
         for r in data["rules"]
     ]
@@ -145,5 +165,9 @@ def apply(email: EmailInput, rules: list[Rule]) -> RuleMatch:
                 action_original=None,
                 confidence=rule.confidence,
                 bucket=rule.bucket,
+                expires_at=(
+                    (datetime.fromisoformat(email.date) + rule.expires_after).isoformat()
+                    if rule.expires_after else ""
+                ),
             )
     raise RuntimeError("No catch-all rule — this should not happen after load_rules() validation")

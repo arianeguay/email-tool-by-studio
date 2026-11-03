@@ -1,6 +1,8 @@
 # Deterministic stage-1 rules — Cantabile reference deployment (STU-1459).
 # Order: bucket A -> B -> C -> D -> catch-all. AND-implicit, first-match-wins,
 # catch-all REQUIRED in last position (mirrors ../../rules/rules.yaml's own convention).
+# Optional per rule: `expires_after: 1h` (m, h or d) archives the conversation from the
+# Inbox once that long has passed since the message's date (STU-2070).
 #
 # Deliberately small: enough to prove the rule engine and taxonomy validation work
 # against bucket names other than the first deployment's and subtypes, not a production ruleset. Most of the

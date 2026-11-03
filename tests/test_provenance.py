@@ -101,7 +101,7 @@ def test_collect_names_the_kernel_apart_from_the_deployment(tmp_path):
 
 def test_collect_records_the_detector_stack(tmp_path):
     stack = collect("mock", tmp_path / "nope.yaml", tmp_path)["detector_stack"]
-    assert set(stack) == {"gliner", "transformers", "torch"}
+    assert set(stack) == {"gliner", "transformers", "torch", "sentencepiece", "protobuf"}
     assert all(v is None or isinstance(v, str) for v in stack.values())
 
 
