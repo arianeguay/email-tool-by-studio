@@ -676,6 +676,16 @@ Consequences, each one tested:
   left the Inbox: a `make apply RUN_ID=<an older run>` (which is what a rollback or a
   resume looks like) planned an archive with no move, stamped `ec/<bucket>` on mail in the
   dumpster, and journalled every operation `ok`.
+  A stage-1 rule may carry `expires_after` (`30m`, `1h`, `2d`: a count and one of `m`, `h`,
+  `d`), and its verdict then records `expires_at`, the message date plus that duration
+  (STU-2070). Once the expiry of a conversation's most recent message has passed, apply
+  archives it with `label_archive`, past the bucket's clamp, since archiving is what the
+  rule asked for. Only from the Inbox, or a message we already filed: one a human moved out
+  with no `ec/<bucket>` of ours stays where they put it. A fetch reaches back to its floor
+  and no further, so the `mailbox-full` apply stage (`scripts/apply_report.py`) also reads
+  every other report next to its own for conversations whose expiry has passed, each taken
+  from the report holding its most recent message. The archive is journaled by the current
+  run, and `undo` of that run reverts it. A rule without `expires_after` behaves as before.
 
 - `email_classifier/webhook/`: push endpoints (classification on notification, Gmail and
   Outlook), with both stage 2 passes (classify and drafts) under the single
