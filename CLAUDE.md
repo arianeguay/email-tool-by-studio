@@ -126,6 +126,10 @@ direction in which an audit must fail.
 Only the push path files. A `make run` is someone at the keyboard who is already
 watching, and the test is the report's `provenance.input_path` (`LIVE_INPUT`, STU-859),
 not the machine the command runs on, so the same command is safe everywhere.
+A scheduled run files too (STU-2069): an IMAP mailbox has no push path, so a deployment
+polls it from cron with `make mailbox-poll`, which files the previous polls and then runs
+`mailbox-full APPLY=true` under `EMAIL_CLASSIFIER_TRIGGER=schedule`. The report records
+that as `provenance.trigger`, and `schedule` is filed like `LIVE_INPUT`.
 `never_fires` and `unexercised_by_this_run` stay null with their `schema_note`: rule
 staleness is a claim about the *rule set*, identical on every run that pinned it, and
 copying the same two lists onto a hundred entries would be the same transcription done
