@@ -2701,6 +2701,20 @@ Consequences, each one tested:
   Both readings are published: the gap is a difference of cut, not a silent correction,
   and the skill stays as is because it is a fingerprinted source of the reviewer, which
   costs a `make qa-gate` to edit.
+- `email_classifier/draft_pairing.py` + `email_classifier/fact_read.py`: which sent
+  reply a draft is compared with, and what changed in it (STU-1998). The join took the
+  newest send on the conversation, which on a production window often answered a later
+  question and once predated the draft by months. A draft is now paired with the first
+  send after its last `ok` write in `logs/drafts/journal.jsonl`, and with nothing when
+  no send follows; a draft the journal never recorded is a `no write time` row, since
+  any other instant is a guess. Both readers (`sent_replies` on Graph and IMAP) apply
+  the same `first_send_after`, and `reviewed` and `pilot_delta` read the same
+  `write_times`. Lexical similarity cannot tell the reviewer's own words for the same
+  facts from a correction, so `--facts` (opt-in, live) asks `draft-facts`, a reader
+  with no history and no tools, whether the sent reply kept, extended or contradicted
+  the draft's facts. Its verdict restates its lists and is cross-checked like
+  `draft-coverage`'s: `incoherent` and `error` stay apart. `by_outcome` keeps the
+  lexical bands; `by_facts` is what an audit quotes.
 - `email_classifier/pilot_delta.py` + `scripts/pilot_delta.py`: the same reading as
   `audit_run.py reviewed`, but over a whole deployment window and grouped by the
   commit that drafted (STU-1182). `reviewed` figures one run; a deployment's exit
