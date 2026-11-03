@@ -1835,6 +1835,19 @@ Consequences, each one tested:
   whose bucket label would collide. Outlook only, refused at policy load elsewhere: an
   IMAP keyword is an ASCII atom and these names are accented, and Gmail has no thread
   reader.
+- `email_classifier/apply/unsubscribe.py`: one-click unsubscribe from bulk senders the
+  owner never reads (STU-2071), under the policy flag `auto_unsubscribe` (off by
+  default), run by `apply_email.py run` and the `mailbox-full` apply stage right after the
+  executor. A sender qualifies when one of the run's messages from it is an `ok` verdict
+  in bucket C carrying `List-Unsubscribe-Post: List-Unsubscribe=One-Click` and an `https`
+  URI in `List-Unsubscribe`, and the Inbox, Archive and Trash together hold at least two
+  messages from that exact address with no `\Seen` flag on any of them. Only the RFC
+  8058 POST goes out, redirects refused: a `mailto:` would send mail as the owner and a
+  GET is a page visit. Each sender is posted to once whatever the answer, journaled
+  (`sender`, `host`, `status`, `run_id`) in the deployment's `logs/unsubscribed.jsonl`,
+  which is what the next run reads to skip it. A dry-run names the senders and posts
+  nothing. The apply summary and the stage's `unsubscribed` output list them. IMAP only,
+  refused at policy load elsewhere: it is the one writer that reads a sender's history.
 - `email_classifier/mail_link.py`: an Outlook web link to the id it names. Outlook
   writes a `conversationId` in the URL when the pane shows a thread and a message id when
   it shows a single message, in the same form, so the mailbox decides
