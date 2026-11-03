@@ -110,6 +110,24 @@ def test_a_phrase_describing_a_child_names_nobody():
         assert not anonymize._never_names_anybody(value), value
 
 
+class _ClaimsAfterAnElision:
+    """GLiNER's claim in production: the elided word, article included (STU-2060)."""
+
+    def predict_entities(self, text, labels, threshold):
+        return [
+            {"start": m.start(), "end": m.end(), "text": m[0]}
+            for m in re.finditer(r"[LlDd]'[A-Za-zÀ-ÿ]+", text)
+        ]
+
+
+def test_an_elided_team_names_nobody(monkeypatch):
+    monkeypatch.setattr(anonymize, "_model", _ClaimsAfterAnElision)
+    assert anonymize.person_spans("Merci à l'équipe") == []
+    assert anonymize.person_spans("L'équipe des Hiboux vous remercie") == []
+    # The elision is stripped, not the word: a surname behind it is still a person.
+    assert anonymize.person_spans("Merci à D'Amour") == [(8, 15)]
+
+
 def test_a_family_name_the_singular_role_collides_with_is_still_a_person():
     # `jeune` vetoes only in lowercase, because `Jeune` is a family name and `jeunes`,
     # its plural in `_ROLES`, cannot be one.

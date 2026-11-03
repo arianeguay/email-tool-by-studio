@@ -126,7 +126,8 @@ _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 # From the lang pack since STU-1460: `stopwords` plus `elision_prefixes` (the clitics
 # GLiNER hands back on their own out of "J'aimerais") — two keys there, one set here,
 # because the veto treats an elided `j` exactly like any other stopword.
-_KEPT = frozenset(_LANG["stopwords"]) | frozenset(_LANG.get("elision_prefixes", []))
+_ELISIONS = frozenset(_LANG.get("elision_prefixes", []))
+_KEPT = frozenset(_LANG["stopwords"]) | _ELISIONS
 
 # What a club mailbox calls somebody without naming them. Measured, not guessed: these
 # are the word forms the detector claimed in more than one message of the real archive
@@ -308,6 +309,10 @@ def _model():
 
 
 def _cannot_name(word: str, extra_vetoed: frozenset[str] = frozenset()) -> bool:
+    # `_WORD` keeps the apostrophe, so `l'équipe` is one word no list holds (STU-2060).
+    head, elided, rest = word.partition("'")
+    if elided and rest and head.casefold() in _ELISIONS:
+        word = rest
     if _HAS_DIGIT.search(word):
         return True
     if word.casefold() in extra_vetoed:
