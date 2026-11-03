@@ -103,3 +103,51 @@ def test_fewer_pairs_than_the_floor_calls_no_reader(monkeypatch, tmp_path):
     monkeypatch.setattr(coverage_read, "run_stage", run_stage)
     result = correction_rules.propose(_pairs(1), tmp_path)
     assert result["candidates"] == [] and "no reader was called" in result["note"]
+
+
+def test_the_command_pairs_the_window_and_keeps_only_redacted_text(monkeypatch, tmp_path):
+    """The wiring end to end, with the mailbox and the reader faked: the latest draft is
+    paired with its send, a reply sent unchanged is dropped, and the file holds no
+    address the pair carried."""
+    from scripts import correction_rules as command
+    from email_classifier import pilot_delta, providers
+    from email_classifier.stage1 import policy
+
+    stub_detector(monkeypatch)
+    (tmp_path / "reports").mkdir()
+    (tmp_path / "reports" / "r.json").write_text("{}", encoding="utf-8")
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text("", encoding="utf-8")
+    rnd = object()
+    drafts = {"T1": DRAFT_ASK + " Write to coach@example.org.", "T2": DRAFT_PROMISE,
+              "T3": SENT_LINK}
+    monkeypatch.setattr(pilot_delta, "rounds", lambda paths, root: [])
+    monkeypatch.setattr(pilot_delta, "drafted_by_round", lambda rounds, dirs: {})
+    monkeypatch.setattr(pilot_delta, "latest_drafting_round",
+                        lambda drafted: {t: (rnd, b) for t, b in drafts.items()})
+    monkeypatch.setattr(pilot_delta, "written_at",
+                        lambda latest, entries: {t: "2026-09-01T10:00:00Z" for t in latest})
+
+    class Reader:
+        def sent_replies(self, written):
+            return {"T1": {"body": SENT_LINK}, "T2": {"body": SENT_ANSWER},
+                    "T3": {"body": SENT_LINK}}
+
+    monkeypatch.setattr(providers, "get_thread_reader", lambda provider: Reader())
+    monkeypatch.setattr(policy, "load_policy",
+                        lambda path: type("P", (), {"email_provider": "outlook"})())
+    seen = []
+
+    def run_stage(pipeline, stage, item_path, cwd, provider, label):
+        seen.append(item_path.read_text(encoding="utf-8"))
+        return {"candidates": [{"rule": "Answer, do not ask or defer",
+                                "pairs": ["P1", "P2"], "why": "w"}], "unexplained": []}
+
+    monkeypatch.setattr(coverage_read, "run_stage", run_stage)
+    out = tmp_path / "candidates.json"
+    assert command.main(["--reports", str(tmp_path / "reports"), "--draft-journal",
+                         str(journal), "-o", str(out)]) == 0
+    record = json.loads(out.read_text(encoding="utf-8"))
+    assert (record["paired"], record["corrected"]) == (3, 2)
+    assert [p["thread_id"] for p in record["candidates"][0]["pairs"]] == ["T1", "T2"]
+    assert "example.org" not in seen[0] and "example.org" not in out.read_text()
