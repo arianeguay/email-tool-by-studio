@@ -197,3 +197,18 @@ def drafted_by_round(rounds_placed: list[Round], runs_dirs) -> dict[str, list[tu
             for thread_id, (_, body) in best.items():
                 drafted.setdefault(thread_id, []).append((rnd, body))
     return drafted
+
+
+def written_at(latest: dict[str, tuple[Round, str]], entries: list[dict]) -> dict[str, str]:
+    """When each conversation's scored draft was written, from the drafts journal.
+
+    Keyed off the round `latest_drafting_round` kept, so the write time is the one of
+    the body being scored. A conversation the journal has no `ok` row for is absent:
+    no write time means no pairing (STU-1998).
+    """
+    from email_classifier import draft_pairing
+
+    by_run = {rnd.run_id: draft_pairing.write_times(entries, rnd.run_id)
+              for rnd, _ in latest.values()}
+    return {t: by_run[rnd.run_id][t] for t, (rnd, _) in latest.items()
+            if t in by_run[rnd.run_id]}

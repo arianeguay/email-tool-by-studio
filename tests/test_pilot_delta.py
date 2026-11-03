@@ -70,3 +70,19 @@ def test_the_carrying_table_announces_a_thin_denominator():
     assert not pilot_delta.enough(3)
     assert pilot_delta.enough(10)
     assert pilot_delta.enough(12)
+
+
+def test_the_write_time_is_the_one_of_the_round_that_drafted_the_scored_body(tmp_path):
+    """The journal holds a write per run; pairing with an older run's write would pick a
+    send that answered a body nobody is scoring. A conversation with no `ok` row has no
+    write time and is left out, never guessed."""
+    old = pilot_delta.rounds([_report(tmp_path, "old.json",
+                                      pilot_delta.RULES_COMMIT, "old", 100)], REPO_ROOT)[0]
+    new = pilot_delta.rounds([_report(tmp_path, "new.json",
+                                      pilot_delta.RULES_COMMIT, "new", 900)], REPO_ROOT)[0]
+    entries = [
+        {"run_id": "old", "status": "ok", "thread_id": "t1", "timestamp": "2026-09-01T10:00:00Z"},
+        {"run_id": "new", "status": "ok", "thread_id": "t1", "timestamp": "2026-09-02T10:00:00Z"},
+    ]
+    latest = {"t1": (new, "second"), "t2": (old, "body")}
+    assert pilot_delta.written_at(latest, entries) == {"t1": "2026-09-02T10:00:00Z"}
