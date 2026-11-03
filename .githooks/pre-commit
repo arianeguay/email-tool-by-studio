@@ -1,0 +1,2 @@
+#!/bin/sh
+exec python3 "$(git rev-parse --show-toplevel)/scripts/check_real_data.py" --staged
