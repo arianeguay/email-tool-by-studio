@@ -21,7 +21,7 @@ unexport ENV_FILE_KEYS UNRESOLVED_KEYS OFFLINE_GOALS
 # it is listed here, the direction a forgotten entry should fail in.
 # pull-webhook is listed because only its dispatch runs here: it reads WEBHOOK_SSH_HOST and
 # opens ssh to the serving host, which reads its own .env (STU-2066).
-OFFLINE_GOALS := test test-venv test-ner clean observe-spans-check qa-gate-check qa-coverage-gate-check signature-anchor-check pull-webhook commitments commitment-settle
+OFFLINE_GOALS := test test-venv test-ner clean observe-spans-check qa-gate-check qa-coverage-gate-check signature-anchor-check pull-webhook commitments commitment-settle memory-harvest-approve
 UNRESOLVED_KEYS := $(strip $(foreach k,$(ENV_FILE_KEYS),$(if $(filter op://%,$(value $k)),$k)))
 ifneq ($(UNRESOLVED_KEYS),)
 ifneq ($(filter-out $(OFFLINE_GOALS),$(or $(MAKECMDGOALS),default)),)
@@ -47,7 +47,7 @@ ifneq ($(shell test -e .env -o -L .env && test ! -r .env && echo unreadable),)
 $(warning .env is present and this account cannot read it, so every key it sets arrives unset. Run the target under the account that owns it; `make check-webhook` names that file and that account.)
 endif
 
-.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full mailbox-poll redraft commitments commitment-settle fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate correction-rules voice-counts seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent promote test test-venv test-ner clean reset-state
+.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full mailbox-poll redraft commitments commitment-settle fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate correction-rules voice-counts memory-harvest memory-harvest-approve seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent promote test test-venv test-ner clean reset-state
 
 DUMP     ?= dumps/gmail-dump.json
 OUTLOOK_DUMP ?= dumps/outlook-dump.json
@@ -330,6 +330,13 @@ eval-ab:             ## A/B the anonymized arm against cleartext on the escalate
 
 voice-counts:        ## The counts behind club-voice.skill.md, per reply and per typed occurrence (STU-1138)
 	$(PYTHON) scripts/voice_counts.py $(if $(JSON),--json)
+
+memory-harvest:      ## Propose the blocks pasted across Sent Items since SINCE=<YYYY-MM-DD> as club-memory facts (STU-2001)
+	@test -n "$(SINCE)" || { echo "[ERROR] pass SINCE=<YYYY-MM-DD>"; exit 1; }
+	$(PYTHON) scripts/memory_harvest.py harvest --since $(SINCE)
+
+memory-harvest-approve: ## Write the candidates marked approve: true into club-memory/ (STU-2001)
+	$(PYTHON) scripts/memory_harvest.py approve
 
 seed:                ## Seed the Outlook test mailbox with synthetic mail (COUNT=, MIX=, ADD=1) (STU-845)
 	$(PYTHON) scripts/seed_outlook.py seed $(if $(COUNT),--count $(COUNT)) $(if $(ADD),--add) \

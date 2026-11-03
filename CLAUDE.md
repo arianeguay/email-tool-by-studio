@@ -87,6 +87,8 @@ make eval-claims   # does the same code still claim the same spans? needs the de
 make pilot-gate    # a deployment's exit conditions, read off the artifacts (STU-1242)
 make pilot-gate OFFLINE=1  # the same, without a Graph call: is there a denominator
 make correction-rules  # candidate drafting rules from the reviewer's corrections (STU-1108)
+make memory-harvest SINCE=<YYYY-MM-DD>  # pasted answer blocks proposed as club-memory facts (STU-2001)
+make memory-harvest-approve  # writes the candidates marked approve: true into club-memory/
 make prune         # purge plan for run artifacts, nothing is deleted (STU-932)
 make prune-apply   # the cron line: purges for real, silent when there is nothing
 make commitments   # promises drafted replies made that nobody settled (STU-1065)
@@ -371,7 +373,8 @@ arrives resolved). A key that still carries `op://` is refused at parse time, be
 recipe and so before any LLM or Graph call, with a message that names the command. Only
 the targets that read no secret run without `op run`: `test`, `test-venv`, `test-ner`,
 `clean`, the four `*-check` targets that compare a committed record, and `pull-webhook`,
-whose workstation half only opens ssh to the serving host (`OFFLINE_GOALS`, STU-2066).
+whose workstation half only opens ssh to the serving host (`OFFLINE_GOALS`, STU-2066),
+and `memory-harvest-approve`, which only writes local files.
 A new target is refused until it is added there, which is the direction a forgotten entry
 must fail in. A host whose `.env` holds plain values never trips the refusal.
 
@@ -1852,6 +1855,22 @@ Consequences, each one tested:
   never a normalized one: a non-breaking space is a `\s` to `re`, so normalizing first
   would erase the very mark being counted. Editing the skill turns `make qa-gate-check`
   red, and the repair is `make qa-gate`.
+- `email_classifier/memory_harvest.py` + `scripts/memory_harvest.py`: the answer blocks
+  the reviewer pastes into sent replies, proposed as club-memory facts (STU-2001). The
+  drafter had none of them, so a recurring question got a draft without the dates or the
+  referral the reviewer then pasted by hand. The detection is `voice_counts`' own, anchored
+  on every line start, and a block's text is the longest run two of its replies share,
+  cut back to a whole line: an edited paste never yields a line cut mid-date, and a reply
+  that does not carry the text neither counts nor dates it. Sent Items are read through
+  `sent_since` on the drafting readers (Graph `uniqueBody`, IMAP `Sent`), never a quoted
+  chain. Nothing reaches the store unread: `make memory-harvest` writes
+  `club-memory/harvest-candidates.json`, `make memory-harvest-approve` refuses while any
+  entry lacks `approve: true|false`, and every decision is recorded with the text it was
+  made on (`club-memory/harvest-decisions.json`), so a rerun proposes only new blocks and
+  blocks whose text moved, and a rejected signature is not proposed again. A block is
+  known by its name, the slug of its first words. Approved facts are written in clear
+  through `club_memory.remember`; the index and `org_memory-read_memory` tokenize them on
+  the way to the prompt like any hand-edited memory (STU-879).
 - `email_classifier/tree_guard.py`: which tree a `--check` answers for, and the refusal
   when it is two (STU-1109). The checks of the family (in this repo `scripts/qa_gate.py`
   and `scripts/qa_coverage_gate.py`, and a deployment's own record checks) derive a

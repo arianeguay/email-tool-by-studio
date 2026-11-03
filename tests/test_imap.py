@@ -382,3 +382,14 @@ def test_the_configured_mailbox_is_the_imap_login(monkeypatch):
     monkeypatch.setenv("IMAP_USER", "moi@example.ca")
 
     assert providers.configured_mailbox("imap") == "moi@example.ca"
+
+
+def test_sent_since_reads_the_sent_folder_only_and_skips_drafts(imap):
+    imap.add("Sent", _mail("r1", sender="moi@example.ca", body="Voici les dates."),
+             received="18-Sep-2026 15:00:00 +0000")
+    imap.add("Sent", _mail("r2", sender="moi@example.ca", body="Brouillon"), flags=["\\Draft"])
+    imap.add("INBOX", _mail("m1", body="Question"))
+
+    replies = ImapFetcher(_session(imap)).sent_since("2026-09-18T00:00:00+00:00")
+
+    assert replies == [{"date": "2026-09-18T15:00:00+00:00", "body": "Voici les dates."}]

@@ -177,6 +177,14 @@ class ImapFetcher:
                 }
         return replies
 
+    def sent_since(self, since: str) -> list[dict]:
+        sent = self._mailbox.folder("Sent")
+        return [
+            projection.message_to_precedent(projection.parse(raw.raw), raw.received)
+            for raw in self._session.fetch(sent, self._session.search(sent, "SINCE", _imap_date(since)))
+            if "\\Draft" not in raw.flags
+        ]
+
     def search_messages(self, query: str, max_results: int) -> list[dict]:
         """Prior mail matching `query`, sent replies included; never Trash or Junk."""
         hits: list[tuple] = []
