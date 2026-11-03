@@ -145,7 +145,7 @@ def test_the_deploy_steps_live_in_the_target_the_sub_make_re_reads():
     assert "sudo systemctl restart email-classifier-webhook" in recipe
     # The step whose absence measured the bug on the serving host: WAIT is an argument of this
     # recipe, so a pull that introduces it must be the pull that runs it.
-    assert "$(MAKE) check-webhook WAIT=60" in recipe
+    assert "check-webhook WAIT=60" in recipe
 
 
 # --- Which exit codes the deploy's verification step tolerates (STU-1095) -----
@@ -160,16 +160,20 @@ def test_the_deploy_steps_live_in_the_target_the_sub_make_re_reads():
 # So the fragment is executed rather than matched. A string assertion on `0|1|6|7`
 # would pass against a rewrite that reads the same and behaves differently, and the
 # shell here is the whole of the behaviour.
+#
+# And it runs the real `check-webhook` recipe through make, with only the probe
+# stubbed. Stubbing the sub-make itself hid STU-2044: make exits 2 whenever a recipe
+# fails, so every tolerated code reached the `case` as 2 and every deploy failed.
 
-_TOLERATED = (0, 1, 6, 7)
-_REJECTED = (2, 3, 4, 5)
+_TOLERATED = (0, 1, 6, 7, 8, 10)
+_REJECTED = (2, 3, 4, 5, 9)
 
 
-def _verification_fragment(privilege_drop: str, check: str) -> str:
+def _verification_fragment(privilege_drop: str, probe: str) -> str:
     """The deploy's verification step as a runnable shell fragment.
 
-    Both halves are substituted because both are what the step has to tell apart:
-    `check` stands in for the sub-make's exit, `privilege_drop` for `sudo` itself.
+    `probe` replaces the interpreter `check-webhook` runs, `privilege_drop` stands in
+    for `sudo` itself; the sub-make is the real one, run against this Makefile.
     The step spans several physical lines joined by backslashes -- it has to, since
     the verdict has to travel from the sub-make's stdout into the `case` -- so the
     whole block is taken rather than one line.
@@ -177,39 +181,54 @@ def _verification_fragment(privilege_drop: str, check: str) -> str:
     lines = [raw.strip() for raw in _recipe("deploy-webhook").splitlines()]
     start = next(i for i, line in enumerate(lines) if "check-webhook WAIT=60" in line)
     fragment = "\n".join(lines[start:])
-    fragment = fragment.replace("$(MAKE) check-webhook WAIT=60 SOURCE=deploy", check)
+    fragment = fragment.replace(
+        "$(MAKE)", f"make -C {REPO_ROOT} PYTHON='{probe}'"
+    )
     fragment = fragment.replace("$(AS_SERVICE)", privilege_drop)
     # `$$` is make's escape for a literal `$`; the shell running it wants one.
     return fragment.replace("$$", "$")
 
 
-def _verification_status(code: int) -> int:
-    """Run the step with the privilege drop out of the way and the check exiting `code`.
+def _stub_probe(tmp_path: Path, code: int) -> str:
+    """A probe that says something on stdout, as the real one does, then exits `code`.
 
-    `(exit N)` in a subshell, not a bare `exit N`: the sub-make's exit is read from
-    what the shell around it prints, so a fragment that ends that shell prints nothing
-    and would read as the privilege drop having failed -- every code alike.
+    Run through `sh` rather than marked executable: what is under test is the make
+    and shell around it, not the stub.
     """
-    fragment = _verification_fragment("", f"(exit {code})")
+    stub = tmp_path / "probe"
+    stub.write_text(f"echo probe output\nexit {code}\n", encoding="utf-8")
+    return f"sh {stub}"
+
+
+def _verification_status(tmp_path: Path, code: int) -> int:
+    """Run the step with the privilege drop out of the way and the probe exiting `code`."""
+    fragment = _verification_fragment("", _stub_probe(tmp_path, code))
     return subprocess.run(["sh", "-c", fragment]).returncode
 
 
 @pytest.mark.parametrize("code", _TOLERATED)
-def test_the_deploy_tolerates_the_codes_that_say_nothing_about_it(code):
-    """A quiet mailbox, and the two credential-expiry codes: none of them is evidence
-    the restart failed, and failing on 6 would block the deploy carrying the fix."""
-    assert _verification_status(code) == 0
+def test_the_deploy_tolerates_the_codes_that_say_nothing_about_it(tmp_path, code):
+    """A quiet mailbox, the two credential-expiry codes, a blind drift leg and an
+    expiring audit entry: none of them is evidence the restart failed, and failing on
+    6 would block the deploy carrying the fix."""
+    assert _verification_status(tmp_path, code) == 0
 
 
 @pytest.mark.parametrize("code", _REJECTED)
-def test_the_deploy_fails_on_a_host_still_serving_the_old_commit(code):
-    """3 above all: it is the one this step was added for. The others have never been
-    tolerated either, and a rewrite that quietly starts letting one through is the
-    same silence one level down."""
-    assert _verification_status(code) != 0
+def test_the_deploy_fails_on_a_host_still_serving_the_old_commit(tmp_path, code):
+    """3 above all: it is the one this step was added for, and 9 is the same drift
+    standing longer. The others have never been tolerated either, and a rewrite that
+    quietly starts letting one through is the same silence one level down."""
+    assert _verification_status(tmp_path, code) != 0
 
 
-def test_the_deploy_fails_when_the_privilege_drop_itself_refuses(capfd):
+def test_the_deploy_names_the_probe_s_own_code_when_it_fails(tmp_path, capfd):
+    """The message quotes the probe's 3, not the 2 make exits with (STU-2044)."""
+    assert _verification_status(tmp_path, 3) != 0
+    assert "check-webhook exited 3," in capfd.readouterr().err
+
+
+def test_the_deploy_fails_when_the_privilege_drop_itself_refuses(tmp_path, capfd):
     """sudo's own 1 is not the check's 1 (STU-1122).
 
     `sudo` exits 1 when sudo fails -- no sudoers entry, an expired timestamp with no
@@ -223,25 +242,18 @@ def test_the_deploy_fails_when_the_privilege_drop_itself_refuses(capfd):
     and an invariant nothing asserts, which is why it is asserted here instead of
     relying on the ordering.
     """
-    assert _verification_status(0) == 0, "the check exiting 0 is the tolerated case"
+    assert _verification_status(tmp_path, 0) == 0, "the check exiting 0 is the tolerated case"
 
     assert subprocess.run(
-        ["sh", "-c", _verification_fragment("false", "(exit 0)")]
+        ["sh", "-c", _verification_fragment("false", _stub_probe(tmp_path, 0))]
     ).returncode != 0
     assert "never ran" in capfd.readouterr().err
 
 
-def test_the_verification_reads_the_sub_make_s_own_exit_and_not_the_wrapper_s():
-    """The mechanism, so a rewrite back to `|| case $? in` fails here and not only above.
-
-    The step's whole discrimination is that the sub-make prints its exit on stdout and
-    everything it says goes to stderr: a number is a verdict, and no number is a
-    privilege drop that never got that far. A wrapper's own exit reaching the `case`
-    is the collision itself.
-    """
-    fragment = _verification_fragment("", "(exit 3)")
-    assert "echo $?" in fragment
-    assert ">&2" in fragment
+def test_check_webhook_keeps_the_probe_s_exit_without_verdict():
+    """The cron reads the probe's code from make's exit, so VERDICT stays opt-in."""
+    recipe = _recipe("check-webhook")
+    assert "$(if $(VERDICT),>&2; echo $$?)" in recipe
 
 
 # --- Which machine the dispatch decides it is on ------------------------------
