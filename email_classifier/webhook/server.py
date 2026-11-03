@@ -563,6 +563,7 @@ def create_app(
     # the served code the drift question is about. Read at request time, the payload
     # would report itself current on exactly the deploy nobody restarted.
     deployed_commit = deploy.head(REPO_ROOT)
+    kernel_commit = deploy.head(deploy.KERNEL_ROOT)
 
     @app.get("/healthz")
     def healthz():
@@ -594,6 +595,9 @@ def create_app(
             # check cannot see a host running a merged fix's predecessor, and a behind
             # host looks exactly like a current one from out here.
             "commit": deployed_commit,
+            # The kernel a deployment serves, which its own commit pins but does not
+            # name; equal to `commit` where the kernel is the checkout (STU-1997).
+            "kernel_commit": kernel_commit,
             "subscription": subscription,
         }
 

@@ -849,6 +849,7 @@ def test_the_payload_names_the_commit_the_process_serves(tmp_path):
     health = _client(tmp_path).get("/healthz").get_json()
 
     assert health["commit"] == _rev(server.REPO_ROOT, "HEAD")
+    assert health["kernel_commit"] == _rev(deploy.KERNEL_ROOT, "HEAD")
 
 
 def test_a_checkout_git_cannot_read_reports_no_commit(tmp_path):
@@ -897,6 +898,45 @@ def test_a_host_ahead_of_main_is_not_behind(tmp_path):
     deployed = _commit(clone, "local hotfix")
 
     assert deploy.measure(deployed, repo_root=clone).commits_behind == 0
+
+
+def _pin_kernel(origin, clone, sha):
+    """A deployment commit on `main` whose `kernel` gitlink points at `sha`, pulled."""
+    _git(origin, "update-index", "--add", "--cacheinfo", f"160000,{sha},kernel")
+    _git(origin, "commit", "-qm", "pin the kernel")
+    _git(clone, "pull", "-q")
+    return _rev(clone, "HEAD")
+
+
+def test_a_kernel_matching_the_pin_is_not_a_drift(tmp_path):
+    origin, clone = _origin_and_clone(tmp_path)
+    kernel = "a" * 40
+    deployed = _pin_kernel(origin, clone, kernel)
+
+    drift = deploy.measure(deployed, repo_root=clone, kernel=kernel)
+
+    assert drift.behind is False
+
+
+def test_a_kernel_other_than_the_pin_is_a_drift_that_names_both(tmp_path):
+    """The deployment is current, but the submodule was never updated under it."""
+    origin, clone = _origin_and_clone(tmp_path)
+    deployed = _pin_kernel(origin, clone, "a" * 40)
+
+    drift = deploy.measure(deployed, repo_root=clone, kernel="b" * 40)
+
+    assert drift.commits_behind == 0
+    assert drift.behind is True
+    assert f"serving kernel {'b' * 12} where it pins {'a' * 12}" in drift.summary()
+
+
+def test_a_checkout_that_pins_no_kernel_makes_no_kernel_claim(tmp_path):
+    """The kernel's own checkout serves itself: there is no pin to compare against."""
+    _origin, clone = _origin_and_clone(tmp_path)
+
+    drift = deploy.measure(_rev(clone, "HEAD"), repo_root=clone, kernel="b" * 40)
+
+    assert drift.behind is False
 
 
 def test_an_unreachable_remote_is_unmeasured_rather_than_current(tmp_path):

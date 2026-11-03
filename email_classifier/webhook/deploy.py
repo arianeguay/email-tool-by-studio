@@ -28,6 +28,9 @@ from pathlib import Path
 from email_classifier import deployment
 
 REPO_ROOT = deployment.ROOT
+# The checkout this package was imported from. A deployment pins it as its `kernel`
+# submodule, so the deployment's HEAD does not say which kernel is being served.
+KERNEL_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_REMOTE = "origin"
 DEFAULT_BRANCH = "main"
@@ -55,10 +58,12 @@ class Drift:
     commits_behind: int | None
     unmeasured: str | None = None
     branch: str = f"{DEFAULT_REMOTE}/{DEFAULT_BRANCH}"
+    # The served kernel is not the one the deployed commit pins (STU-1997).
+    kernel_mismatch: str | None = None
 
     @property
     def behind(self) -> bool:
-        return bool(self.commits_behind)
+        return bool(self.commits_behind) or self.kernel_mismatch is not None
 
     @property
     def unverified(self) -> bool:
@@ -73,6 +78,8 @@ class Drift:
         if self.commits_behind is None:
             return f"deploy unverified: {self.unmeasured}"
         running = f"running {self.deployed[:12]}"
+        if self.kernel_mismatch:
+            running = f"{running}, {self.kernel_mismatch}"
         if self.commits_behind == 0:
             return f"{running}, current with {self.branch}"
         commits = "commit" if self.commits_behind == 1 else "commits"
@@ -103,12 +110,19 @@ def head(repo_root: Path = REPO_ROOT) -> str | None:
     return _git(repo_root, "rev-parse", "HEAD")
 
 
+def pinned_kernel(deployed: str, repo_root: Path = REPO_ROOT) -> str | None:
+    """The kernel commit `deployed` pins as its `kernel` submodule, or None without one."""
+    meta = (_git(repo_root, "ls-tree", deployed, "kernel") or "").partition("\t")[0].split()
+    return meta[2] if len(meta) == 3 and meta[1] == "commit" else None
+
+
 def measure(
     deployed: str | None,
     repo_root: Path = REPO_ROOT,
     remote: str = DEFAULT_REMOTE,
     branch: str = DEFAULT_BRANCH,
     fetch: bool = True,
+    kernel: str | None = None,
 ) -> Drift:
     """How far `deployed` is behind `remote/branch`, measured from `repo_root`."""
     tip = f"{remote}/{branch}"
@@ -130,4 +144,9 @@ def measure(
         # The reported commit is not an object here: a clone that has not fetched it,
         # or a host serving code from somewhere this repo cannot see.
         return Drift(deployed, target, None, f"{deployed[:12]} is not in this clone", tip)
-    return Drift(deployed, target, int(behind), None, tip)
+    mismatch = None
+    if kernel and _SHA.match(kernel):
+        pin = pinned_kernel(deployed, repo_root)
+        if pin and not pin.startswith(kernel):
+            mismatch = f"serving kernel {kernel[:12]} where it pins {pin[:12]}"
+    return Drift(deployed, target, int(behind), None, tip, mismatch)
