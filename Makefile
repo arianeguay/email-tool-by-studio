@@ -19,7 +19,9 @@ unexport ENV_FILE_KEYS UNRESOLVED_KEYS OFFLINE_GOALS
 # `.../op://Dev/...`). Refused before any recipe runs, so before any LLM or Graph call.
 # Only the goals that read no secret may run without `op run`; a new target refuses until
 # it is listed here, the direction a forgotten entry should fail in.
-OFFLINE_GOALS := test test-venv test-ner clean observe-spans-check qa-gate-check qa-coverage-gate-check signature-anchor-check
+# pull-webhook is listed because only its dispatch runs here: it reads WEBHOOK_SSH_HOST and
+# opens ssh to the serving host, which reads its own .env (STU-2066).
+OFFLINE_GOALS := test test-venv test-ner clean observe-spans-check qa-gate-check qa-coverage-gate-check signature-anchor-check pull-webhook
 UNRESOLVED_KEYS := $(strip $(foreach k,$(ENV_FILE_KEYS),$(if $(filter op://%,$(value $k)),$k)))
 ifneq ($(UNRESOLVED_KEYS),)
 ifneq ($(filter-out $(OFFLINE_GOALS),$(or $(MAKECMDGOALS),default)),)
