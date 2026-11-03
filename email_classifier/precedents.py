@@ -65,6 +65,7 @@ def search(query: str, searcher, limit: int = MATCH_LIMIT) -> dict:
         "query": query,
         "matches": [
             {"date": hit["date"],
+             "direction": hit["direction"],
              "body": redact(hit["body"], tokenizer, words)[:BODY_LIMIT]}
             for hit in searcher.search_messages(query, limit)
         ],
