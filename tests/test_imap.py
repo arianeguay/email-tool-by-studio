@@ -252,7 +252,10 @@ def test_thread_history_marks_our_sent_turns_and_skips_the_answered_mail(imap):
         ("received", "Question 1"), ("sent", "Réponse"),
     ]
     assert fetcher.last_sent_at("root") == "2026-11-01T10:00:00+00:00"
-    assert fetcher.sent_replies(["root"])["root"]["body"] == "Réponse"
+    assert fetcher.sent_replies({"root": "2026-11-01T09:30:00+00:00"})["root"]["body"] == \
+        "Réponse"
+    # A send older than the draft is not the reply sent in its place (STU-1998).
+    assert fetcher.sent_replies({"root": "2026-11-01T10:30:00+00:00"}) == {}
 
 
 def test_precedent_search_covers_sent_but_never_trash(imap):

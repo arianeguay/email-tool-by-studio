@@ -39,14 +39,14 @@ TIMEOUT = 300
 DEFAULT_PROVIDER = "anthropic"
 
 
-def output_of(stdout: str) -> dict:
+def output_of(stdout: str, stage_name: str = STAGE) -> dict:
     """The reader's output in a run record, or `{}` when it did not return one."""
     try:
         record = json.loads(stdout)
     except json.JSONDecodeError:
         return {}
     for stage in record.get("stages") or []:
-        if isinstance(stage, dict) and stage.get("stage_name") == STAGE:
+        if isinstance(stage, dict) and stage.get("stage_name") == stage_name:
             output = stage.get("output")
             if isinstance(output, dict):
                 return output
@@ -74,7 +74,24 @@ def read(group: qa_coverage.Group, workdir: Path, run_id: str, repeat: int, labe
         ),
         encoding="utf-8",
     )
-    command = ["studio", "run", PIPELINE, "--input-file", str(item_path), "--json"]
+    output = run_stage(PIPELINE, STAGE, item_path, cwd, provider, label)
+    parsed = qa_coverage.read_of(output, repeat)
+    if parsed.verdict == qa_coverage.INCOHERENT:
+        # The reader answered and contradicted itself. Printed rather than only counted:
+        # what it actually said is the whole of what a human can act on, and the output
+        # holds only the sender's words and the reply, both already on this disk.
+        print(f"  {label}: incoherent | {json.dumps(output, ensure_ascii=False)}",
+              file=sys.stderr)
+    return parsed
+
+
+def run_stage(pipeline: str, stage: str, item_path: Path, cwd: Path,
+              provider: str | None, label: str) -> dict:
+    """One `studio run` of a one-stage reader, and that stage's output or `{}`.
+
+    Shared with `fact_read` (STU-1998): one way to call a reader, not two.
+    """
+    command = ["studio", "run", pipeline, "--input-file", str(item_path), "--json"]
     if provider:
         command += ["--provider", provider]
     try:
@@ -84,16 +101,9 @@ def read(group: qa_coverage.Group, workdir: Path, run_id: str, repeat: int, labe
         )
     except subprocess.TimeoutExpired:
         print(f"  {label}: TIMEOUT after {TIMEOUT}s", file=sys.stderr)
-        return qa_coverage.Read(repeat, qa_coverage.ERROR, ())
-    output = output_of(result.stdout)
+        return {}
+    output = output_of(result.stdout, stage)
     if not output:
         # stderr only: stdout is the run record and it echoes the input back (STU-1010).
         print(f"  {label}: no output | rc={result.returncode}", file=sys.stderr)
-    parsed = qa_coverage.read_of(output, repeat)
-    if parsed.verdict == qa_coverage.INCOHERENT:
-        # The reader answered and contradicted itself. Printed rather than only counted:
-        # what it actually said is the whole of what a human can act on, and the output
-        # holds only the sender's words and the reply, both already on this disk.
-        print(f"  {label}: incoherent | {json.dumps(output, ensure_ascii=False)}",
-              file=sys.stderr)
-    return parsed
+    return output

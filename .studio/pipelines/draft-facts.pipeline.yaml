@@ -1,0 +1,20 @@
+name: draft-facts
+description: Did the reply sent in a draft's place keep, extend or contradict its facts?
+version: 1
+
+# STU-1998. `audit_run.py reviewed --facts` pairs each draft with the first send after
+# it and asks this one question of the pair. Lexical similarity scores a reply that says
+# the same thing in other words exactly like one that corrects the draft; this tells
+# them apart. One stage, no group, and a reader that sees only the two bodies: the
+# conversation and the club's sources would let it judge which text is right, which is
+# not the question.
+stages:
+  - name: draft-facts
+    kind: qa
+    agent: fact-reader
+    contract: draft-facts
+    ralph:
+      max_attempts: 2
+    context:
+      include:
+        - input
