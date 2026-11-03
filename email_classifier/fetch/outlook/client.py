@@ -689,8 +689,11 @@ class OutlookFetcher:
         Unbounded, like `_list_inbox_ids_since`: a cap would hide the oldest miss,
         which is the one the check exists to name.
         """
+        return self._received_since("inbox", since)
+
+    def _received_since(self, folder: str, since: str) -> list[tuple[str, str]]:
         found: list[tuple[str, str]] = []
-        url = "/me/mailFolders('inbox')/messages"
+        url = f"/me/mailFolders('{folder}')/messages"
         params: dict | None = {
             "$select": "id,receivedDateTime,isDraft",
             "$filter": _received("ge", since),
@@ -706,6 +709,17 @@ class OutlookFetcher:
             url = page.get("@odata.nextLink")
             params = None
         return found
+
+    def sent_since(self, since: str) -> list[dict]:
+        """Every Sent Items reply stored at or after `since`, as `{date, body}` (STU-2001).
+
+        Bodies by id, `uniqueBody` as everywhere else: a paste found in the quoted chain
+        would be the parent's words, or our own earlier reply counted twice.
+        """
+        found = self._received_since("sentitems", since)
+        bodies = self.fetch_bodies_by_ids([message_id for message_id, _ in found])
+        return [{"date": projection.iso_date(received), "body": bodies[message_id]}
+                for message_id, received in found]
 
     def fetch_input_by_reference(self, ref: str) -> dict:
         """One EmailInput from what an Outlook link named — a message or a thread.

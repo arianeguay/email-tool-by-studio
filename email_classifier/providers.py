@@ -138,6 +138,12 @@ class PrecedentSearcher(Protocol):
     def search_messages(self, query: str, max_results: int) -> list[dict]: ...
 
 
+class SentReader(Protocol):
+    """The club's sent replies since an ISO 8601 UTC instant, as `{date, body}` (STU-2001)."""
+
+    def sent_since(self, since: str) -> list[dict]: ...
+
+
 class Writer(Protocol):
     """Write path. Label ids are opaque provider handles from `ensure_label`.
 
@@ -328,6 +334,10 @@ def get_thread_reader(provider: str) -> ThreadReader:
 
 def get_precedent_searcher(provider: str) -> PrecedentSearcher:
     return _drafting_reader(provider, "precedent searcher")
+
+
+def get_sent_reader(provider: str) -> SentReader:
+    return _drafting_reader(provider, "sent reader")
 
 
 def get_writer(provider: str, interactive: bool | None = None) -> Writer:
