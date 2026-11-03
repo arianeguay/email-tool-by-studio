@@ -86,3 +86,28 @@ def test_the_write_time_is_the_one_of_the_round_that_drafted_the_scored_body(tmp
     ]
     latest = {"t1": (new, "second"), "t2": (old, "body")}
     assert pilot_delta.written_at(latest, entries) == {"t1": "2026-09-02T10:00:00Z"}
+
+
+def test_an_orphaned_draft_is_named_apart_and_the_window_keeps_reading(tmp_path, monkeypatch):
+    """STU-2075: a `write-draft` naming a thread no `drafts-pre` item carries used to
+    raise `OrphanDraft` and stop the whole window. It is counted apart, never scored."""
+    from email_classifier import cost
+
+    def complete(stage, output):
+        return json.dumps({"event": "stage_complete", "stage": stage, "output": output})
+
+    log = tmp_path / "run.jsonl"
+    log.write_text("\n".join([
+        complete("drafts-pre", {"pending": [{"thread_id": "t1"}]}),
+        complete("write-draft", {"thread_id": "t1", "draft_body": "kept"}),
+        complete("write-draft", {"thread_id": "tl", "draft_body": "orphan"}),
+    ]), encoding="utf-8")
+    monkeypatch.setattr(cost, "find_logs", lambda run_id, dirs: [log])
+    rnd = pilot_delta.rounds([_report(tmp_path, "r.json",
+                                      pilot_delta.RULES_COMMIT, "run", 100)], REPO_ROOT)[0]
+
+    unmatched: set[str] = set()
+    drafted = pilot_delta.drafted_by_round([rnd], [tmp_path], unmatched)
+
+    assert drafted == {"t1": [(rnd, "kept")]}
+    assert unmatched == {"tl"}

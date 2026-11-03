@@ -167,7 +167,8 @@ def enough(carrying_conversations: int, floor: int = 10) -> bool:
     return carrying_conversations >= floor
 
 
-def drafted_by_round(rounds_placed: list[Round], runs_dirs) -> dict[str, list[tuple[Round, str]]]:
+def drafted_by_round(rounds_placed: list[Round], runs_dirs,
+                     unmatched: set[str] | None = None) -> dict[str, list[tuple[Round, str]]]:
     """Every conversation each round drafted, and the body it left on it.
 
     One statement of this and not two: `scripts/pilot_delta.py` scores these bodies and
@@ -178,6 +179,10 @@ def drafted_by_round(rounds_placed: list[Round], runs_dirs) -> dict[str, list[tu
     passes, so an earlier attempt is a body the reviewer never saw. Collapsing across
     rounds is `latest_drafting_round`'s job, deliberately left separate: this answers what
     a round did, that answers what a conversation got.
+
+    A draft whose thread no `drafts-pre` item carries (a mis-copied id, STU-2074) names
+    no conversation that can be scored: it is left out and its thread id added to
+    `unmatched`, rather than stopping the whole window (STU-2075).
     """
     from email_classifier.cost import find_logs
     from email_classifier.qa_bakeoff import drafts_from_journal
@@ -190,7 +195,11 @@ def drafted_by_round(rounds_placed: list[Round], runs_dirs) -> dict[str, list[tu
             except OSError:
                 continue
             best: dict[str, tuple[int, str]] = {}
-            for draft in drafts_from_journal(lines):
+            for draft in drafts_from_journal(lines, strict=False):
+                if draft.item is None:
+                    if unmatched is not None:
+                        unmatched.add(draft.thread_id)
+                    continue
                 body = draft.draft.get("draft_body") or ""
                 if draft.thread_id not in best or draft.attempt >= best[draft.thread_id][0]:
                     best[draft.thread_id] = (draft.attempt, body)
