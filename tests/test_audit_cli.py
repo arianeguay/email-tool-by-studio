@@ -1177,8 +1177,8 @@ class _Mailbox:
     def __init__(self):
         self.asked = []
 
-    def sent_replies(self, thread_ids):
-        self.asked.append(list(thread_ids))
+    def sent_replies(self, written_at):
+        self.asked.append(dict(written_at))
         return {"T1": {"body": "Bonjour, oui c'est bien samedi."}}
 
     def find_draft(self, thread_id):
@@ -1207,7 +1207,8 @@ def test_reviewed_reports_an_unmatched_draft_as_a_row(monkeypatch, tmp_path, cap
     monkeypatch.setattr(providers, "get_drafter", lambda provider: mailbox)
 
     code = _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),
-                extra=["--studio-log", str(journal)])
+                extra=["--studio-log", str(journal),
+                       "--draft-journal", str(_draft_journal(tmp_path, "T1"))])
 
     out = json.loads(capsys.readouterr().out)
     assert code == 0
@@ -1215,4 +1216,89 @@ def test_reviewed_reports_an_unmatched_draft_as_a_row(monkeypatch, tmp_path, cap
     assert out["conversations"] == 1
     assert [(r["thread_id"], r["outcome"]) for r in out["rows"]][-1] == \
         ("TX", audit_run.UNMATCHED_ITEM)
-    assert mailbox.asked == [["T1"]]
+    assert mailbox.asked == [{"T1": "2026-10-16T12:00:00+00:00"}]
+
+
+def _draft_journal(tmp_path, *threads, run_id="run-1"):
+    path = tmp_path / "draft-journal.jsonl"
+    path.write_text("\n".join(json.dumps({
+        "timestamp": "2026-10-16T12:00:00+00:00", "run_id": run_id, "thread_id": t,
+        "message_id": f"m-{t}", "status": "ok"}) for t in threads), encoding="utf-8")
+    return path
+
+
+def _two_draft_journal(tmp_path):
+    def complete(stage, output):
+        return json.dumps({"event": "stage_complete", "stage": stage, "output": output})
+
+    journal = tmp_path / "drafts.jsonl"
+    journal.write_text("\n".join([
+        json.dumps({"event": "pipeline_start", "run_id": "run-1"}),
+        complete("drafts-pre", {"pending": [{"thread_id": "T1"}, {"thread_id": "T2"}]}),
+        complete("write-draft", {"thread_id": "T1", "draft_body": "Bonjour, oui."}),
+        complete("write-draft", {"thread_id": "T2", "draft_body": "Bonjour, non."}),
+    ]), encoding="utf-8")
+    return journal
+
+
+def test_reviewed_pairs_only_drafts_the_journal_saw_written(monkeypatch, tmp_path, capsys):
+    """STU-1998: a draft is paired with the first send after its write time. One the
+    drafts journal never recorded has no instant to pair from, so it is a row, never a
+    score against whatever the conversation sent last."""
+    from email_classifier import providers
+
+    mailbox = _Mailbox()
+    monkeypatch.setattr(providers, "get_thread_reader", lambda provider: mailbox)
+    monkeypatch.setattr(providers, "get_drafter", lambda provider: mailbox)
+
+    code = _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),
+                extra=["--studio-log", str(_two_draft_journal(tmp_path)),
+                       "--draft-journal", str(_draft_journal(tmp_path, "T1"))])
+
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert mailbox.asked == [{"T1": "2026-10-16T12:00:00+00:00"}]
+    assert out["no_write_time"] == 1
+    assert ("T2", audit_run.NO_WRITE_TIME) in [(r["thread_id"], r["outcome"])
+                                               for r in out["rows"]]
+
+
+def test_reviewed_reads_facts_only_when_asked(monkeypatch, tmp_path, capsys):
+    """`reviewed` stays offline by default; `--facts` adds the reading beside the
+    lexical bands, which stay as they were."""
+    from email_classifier import fact_read, providers
+
+    mailbox = _Mailbox()
+    monkeypatch.setattr(providers, "get_thread_reader", lambda provider: mailbox)
+    monkeypatch.setattr(providers, "get_drafter", lambda provider: mailbox)
+    asked = []
+
+    def read(thread_id, draft_body, sent_body, cwd, provider=None):
+        asked.append(thread_id)
+        return {"verdict": "contradicted", "contradicted": ["can still register"]}
+
+    monkeypatch.setattr(fact_read, "read", read)
+    extra = ["--studio-log", str(_two_draft_journal(tmp_path)),
+             "--draft-journal", str(_draft_journal(tmp_path, "T1", "T2"))]
+
+    _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(), extra=extra)
+    offline = json.loads(capsys.readouterr().out)
+    assert asked == [] and "by_facts" not in offline
+
+    _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),
+         extra=[*extra, "--facts"])
+    out = json.loads(capsys.readouterr().out)
+    # T2 has no sent reply, so nothing to read it against.
+    assert asked == ["T1"]
+    assert out["by_facts"]["contradicted"] == 1
+    assert out["by_outcome"] == offline["by_outcome"]
+    assert [r.get("facts") for r in out["rows"] if r["thread_id"] == "T1"] == [
+        {"verdict": "contradicted", "contradicted": ["can still register"]}]
+
+
+def test_reviewed_refuses_without_the_drafts_journal(monkeypatch, tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),
+             extra=["--studio-log", str(_two_draft_journal(tmp_path)),
+                    "--draft-journal", str(tmp_path / "absent.jsonl")])
+    assert "no drafts journal" in str(exc.value)

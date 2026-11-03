@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import quote
 
+from email_classifier import draft_pairing
 from email_classifier.fetch.grant import GrantLost
 from email_classifier.fetch.outlook import projection
 from email_classifier.providers import trashed_by_us
@@ -835,8 +836,11 @@ class OutlookFetcher:
             default=None,
         )
 
-    def sent_replies(self, thread_ids: list[str]) -> dict[str, dict]:
-        """The club's most recent sent reply on each conversation, with its text.
+    def sent_replies(self, written_at: dict[str, str]) -> dict[str, dict]:
+        """The club's first sent reply after each draft was written, with its text.
+
+        Keyed by conversation, valued by the draft's write time; a conversation with
+        no send after it is absent (STU-1998, `draft_pairing`).
 
         `last_sent_at` answers *when* for the drafting selection and stops there,
         because it is asked of every pending mail including the ones about to be
@@ -848,14 +852,15 @@ class OutlookFetcher:
         rewrite.
         """
         replies = {}
-        for thread_id in thread_ids:
+        for thread_id, at in written_at.items():
             sent = self._conversation_messages(thread_id, "/mailFolders('sentitems')")
-            if not sent:
+            first = draft_pairing.first_send_after(
+                sent, at, lambda message: message["receivedDateTime"])
+            if first is None:
                 continue
-            newest = max(sent, key=lambda message: message["receivedDateTime"])
-            body = self.fetch_bodies_by_ids([newest["id"]]).get(newest["id"], "")
+            body = self.fetch_bodies_by_ids([first["id"]]).get(first["id"], "")
             replies[thread_id] = {
-                "sent_at": projection.iso_date(newest["receivedDateTime"]),
+                "sent_at": projection.iso_date(first["receivedDateTime"]),
                 "body": body,
             }
         return replies

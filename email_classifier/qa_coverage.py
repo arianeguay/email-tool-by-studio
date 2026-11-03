@@ -288,8 +288,8 @@ class Read:
         return self.verdict in NOT_A_READ
 
 
-def _requests_of(output: dict) -> list | None:
-    """The reader's `requests`, whether it arrived as a list or as a JSON string.
+def list_field(output: dict, key: str) -> list | None:
+    """A reader's list field, whether it arrived as a list or as a JSON string.
 
     Measured on the STU-1140 corpus, 2026-08-30: the same prompt returns a real array on
     one call and the array serialised into a string on the next, roughly half and half.
@@ -300,13 +300,13 @@ def _requests_of(output: dict) -> list | None:
     is decoded once, here, where the output is already being checked — and a string that
     is not a JSON array is still not a list, which is the honest answer to `[object]`.
     """
-    requests = output.get("requests")
-    if isinstance(requests, str):
+    value = output.get(key)
+    if isinstance(value, str):
         try:
-            requests = json.loads(requests)
+            value = json.loads(value)
         except json.JSONDecodeError:
             return None
-    return requests if isinstance(requests, list) else None
+    return value if isinstance(value, list) else None
 
 
 def read_of(output: dict, repeat: int) -> Read:
@@ -318,7 +318,7 @@ def read_of(output: dict, repeat: int) -> Read:
     either half of that would record a judgement nobody made. Measured, not hypothetical
     — this fires on real reads of the STU-1140 corpus.
     """
-    requests = _requests_of(output)
+    requests = list_field(output, "requests")
     verdict = output.get("verdict")
     if requests is None or verdict not in (COVERED, INCOMPLETE):
         return Read(repeat, ERROR, ())

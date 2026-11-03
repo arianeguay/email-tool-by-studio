@@ -1,0 +1,15 @@
+name: draft-facts
+version: 1
+
+schema:
+  required_fields:
+    - facts
+    - added
+    - verdict
+
+# No `post_validation`: `contradicted` is a finding an audit quotes, not a stage the
+# engine should end as `rejected`.
+#
+# `verdict` restates `facts` and `added` on purpose: `fact_read.read_of` checks the
+# three against each other and records `incoherent` when they disagree, rather than
+# picking the half it prefers (the `draft-coverage` discipline, STU-1140).
