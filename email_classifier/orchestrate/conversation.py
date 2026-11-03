@@ -51,6 +51,7 @@ class ThreadVerdict:
     suggested_action: str
     rule_id: str | None       # of the message the action came from — what the journal cites
     latest_message_id: str    # the message the action came from; where a reply belongs
+    expires_at: str = ""      # of that same message: an expiry is a claim about now too
 
 
 def group(verdicts: list[EmailVerdict]) -> dict[str, list[EmailVerdict]]:
@@ -103,6 +104,7 @@ def reconcile(messages: list[EmailVerdict], taxonomy: Taxonomy) -> ThreadVerdict
         suggested_action=action,
         rule_id=latest.rule_id,
         latest_message_id=latest.message_id,
+        expires_at=latest.expires_at,
     )
 
 

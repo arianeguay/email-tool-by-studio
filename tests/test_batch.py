@@ -311,6 +311,12 @@ def test_every_verdict_builder_carries_the_message_date():
     assert batch.llm_verdict(RECORD, None, {}, TAXONOMY).date == RECORD["date"]
 
 
+def test_a_stage1_record_carries_its_rule_expiry_onto_the_verdict():
+    record = {**RECORD, "action": "keep_visible", "bucket": "A", "escalated": False,
+              "expires_at": "2026-06-12T09:15:00+00:00"}
+    assert batch.deterministic_verdict(record).expires_at == "2026-06-12T09:15:00+00:00"
+
+
 def test_results_are_indexed_and_a_missing_fan_out_yields_nothing():
     output = {"results": [{"index": 1, "status": "success"}, {"status": "success"}]}
     assert batch.results_by_index(output) == {1: {"index": 1, "status": "success"}}

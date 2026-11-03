@@ -3,6 +3,9 @@
 
 Script executor interface: reads JSON from stdin, writes JSON to stdout.
 
+Conversations an earlier report decided are applied again once their rule expiry has
+passed (STU-2070), so the archive lands in this run's journal and `undo` reverts it.
+
 Dry-run unless the input says `apply: true` — anything else (absent, false, a
 string) plans and mutates nothing, so a malformed input can never be the reason
 a mailbox got written to. Policy gating (`deterministic_can_finalize`,
@@ -17,11 +20,12 @@ Output: { "run_id", "report_path", "journal_path", "dry_run", "acted" }
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
-from email_classifier.apply.executor import apply_verdicts, render_summary
+from email_classifier.apply.executor import apply_verdicts, expired_threads, render_summary
 from email_classifier.apply.journal import ApplyJournal, journal_path
 from email_classifier.core.contract import load_taxonomy
 from email_classifier.orchestrate.report import EmailVerdict
@@ -49,12 +53,20 @@ def main() -> None:
     report_path = REPO_ROOT / ctx["report"]
     report = json.loads(report_path.read_text(encoding="utf-8"))
     verdicts = [EmailVerdict(**v) for v in report["verdicts"]]
+    now = datetime.now(timezone.utc)
+    earlier = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(report_path.parent.glob("*.json"))
+        if path != report_path
+    ]
+    verdicts += expired_threads(earlier, {v.thread_id for v in verdicts}, now)
 
     journal_dir = REPO_ROOT / ctx.get("journal_dir", "logs/applied")
     journal = ApplyJournal(journal_path(journal_dir, report["run_id"], dry_run=dry_run),
                            report["run_id"])
     outcomes = apply_verdicts(
-        verdicts, get_writer(policy.email_provider), policy, journal, taxonomy, dry_run=dry_run
+        verdicts, get_writer(policy.email_provider), policy, journal, taxonomy,
+        dry_run=dry_run, now=now,
     )
 
     print(render_summary(outcomes, dry_run=dry_run), file=sys.stderr)
