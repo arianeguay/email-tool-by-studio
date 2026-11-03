@@ -28,6 +28,9 @@ ANONYMIZATION_SCOPES: dict[str, list[str]] = {
 }
 
 
+SENT_SOURCES = {"gmail"}
+
+
 @dataclass
 class Policy:
     deterministic_can_finalize: bool
@@ -71,6 +74,9 @@ class Policy:
     # Modules that register an `envelope` rewriter on import (STU-1995): the kernel
     # imports what the deployment names and never names one itself.
     envelope_rewriters: list[str] = field(default_factory=list)
+    # Other mailboxes whose Sent folder also answers a thread (STU-2082): a deployment
+    # mid-move still replies from the old one, and its own Sent folder cannot see it.
+    sent_sources: list[str] = field(default_factory=list)
 
 
 def _start_date(value, path: Path) -> date | None:
@@ -196,6 +202,11 @@ def load_policy(path: Path) -> Policy:
         raise ValueError(
             f"auto_unsubscribe needs email.provider imap in {path}, got {email_provider!r}"
         )
+    sent_sources = data.get("email", {}).get("sent_sources", [])
+    if not isinstance(sent_sources, list) or set(sent_sources) - SENT_SOURCES:
+        raise ValueError(
+            f"email.sent_sources must be a list drawn from {sorted(SENT_SOURCES)} in "
+            f"{path}, got {sent_sources!r}")
     return Policy(
         deterministic_can_finalize=data["deterministic_can_finalize"],
         destructive_actions_allowed=data.get("destructive_actions_allowed", []),
@@ -211,6 +222,7 @@ def load_policy(path: Path) -> Policy:
         language=language,
         vouched_skill=_vouched_skill(data.get("vouched_skill"), path),
         envelope_rewriters=_envelope_rewriters(data.get("envelope_rewriters"), path),
+        sent_sources=sent_sources,
     )
 
 

@@ -65,7 +65,9 @@ from email_classifier.eval.harness import load_corpus
 from email_classifier.orchestrate import drafts
 from email_classifier.orchestrate.pipeline import dedupe_by_message
 from email_classifier.orchestrate.provenance import resolved_provider
-from email_classifier.providers import get_body_fetcher, get_drafter, get_thread_reader
+from email_classifier.providers import (
+    get_body_fetcher, get_drafter, get_sent_source, get_thread_reader,
+)
 from email_classifier.stage1.policy import load_policy
 from email_classifier import deployment
 
@@ -77,11 +79,17 @@ def _paths(ctx: dict) -> dict[str, str]:
             for key, default in drafts.DEFAULT_PATHS.items()}
 
 
-def _verdict(email, drafter, threads, entries, prompt_fp) -> tuple[str | None, str]:
-    """The conversation's draft id, if any, and what to do about it."""
+def _verdict(email, drafter, threads, sent_sources, entries,
+             prompt_fp) -> tuple[str | None, str]:
+    """The conversation's draft id, if any, and what to do about it.
+
+    A reply sent from a second mailbox counts as one sent from this one (STU-2082).
+    """
     draft_id = drafter.find_draft(email.thread_id)
     draft = drafter.get_draft(draft_id) if draft_id else None
-    last_sent = threads.last_sent_at(email.thread_id)
+    last_sent = drafts.latest_sent(threads.last_sent_at(email.thread_id), *(
+        drafts.answered_elsewhere(email, source.sent_to(email.from_address, email.date))
+        for source in sent_sources))
     ours = drafts.our_draft(entries, draft_id) if draft_id else None
     return draft_id, drafts.conversation_verdict(
         email.date, draft, last_sent, ours, prompt_fp)
@@ -161,6 +169,7 @@ def _pending_items(paths: dict, policy, report: dict, emails: dict,
     # just made.
     drafter = get_drafter(policy.email_provider)
     threads = get_thread_reader(policy.email_provider) if wanted else None
+    sent_sources = [get_sent_source(name) for name in policy.sent_sources] if wanted else []
     journal = Path(paths["draft_journal"])
     entries = read_entries(journal) if journal.exists() else []
     # Read before the verdicts and not beside the items: today's prompt is what says
@@ -172,7 +181,8 @@ def _pending_items(paths: dict, policy, report: dict, emails: dict,
     verdicts = {
         message_id: (None, hold)
         if (hold := drafts.content_hold(emails[message_id].body_snippet, holds))
-        else _verdict(emails[message_id], drafter, threads, entries, prompt_fp)
+        else _verdict(emails[message_id], drafter, threads, sent_sources, entries,
+                      prompt_fp)
         for message_id in wanted
     }
     _report_states(verdicts, emails, journal, report["run_id"])
