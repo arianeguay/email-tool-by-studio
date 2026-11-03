@@ -47,7 +47,7 @@ ifneq ($(shell test -e .env -o -L .env && test ! -r .env && echo unreadable),)
 $(warning .env is present and this account cannot read it, so every key it sets arrives unset. Run the target under the account that owns it; `make check-webhook` names that file and that account.)
 endif
 
-.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full redraft fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate voice-counts seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent promote test test-venv test-ner clean reset-state
+.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full mailbox-poll redraft fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate voice-counts seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent promote test test-venv test-ner clean reset-state
 
 DUMP     ?= dumps/gmail-dump.json
 OUTLOOK_DUMP ?= dumps/outlook-dump.json
@@ -191,6 +191,11 @@ mailbox-full: audit-gate ## Fetch -> classify -> apply under one Studio run id (
 	@printf 'query: "%s"\nmax_results: %s\nprovider: %s\napply: %s\n' \
 		'$(QUERY)' '$(MAX)' '$(LIVE_PROVIDER)' '$(APPLY)' > $(MAILBOX_INPUT)
 	$(WITH_DETECTOR) studio run mailbox-full --input-file $(MAILBOX_INPUT) $(LIVE_PROVIDER_FLAG)
+
+# What a scheduler runs for a mailbox with no push path (STU-2069). Filing first is what
+# lets the gate pass: the previous poll's report is filed as unreviewed, not waved through.
+mailbox-poll: audit-file ## Scheduled mailbox-full with APPLY=true; files the previous polls first (cron)
+	$(MAKE) mailbox-full APPLY=true EMAIL_CLASSIFIER_TRIGGER=schedule
 
 redraft:             ## Delete the draft on one conversation and write a fresh one (LINK=<outlook link>)
 	@test -n "$(LINK)" || { echo "[ERROR] pass LINK=<outlook web link to the conversation>"; exit 1; }

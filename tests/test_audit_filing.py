@@ -105,6 +105,13 @@ class TestWhatGetsFiled:
         assert file_it(paths) == []
         assert entries(paths) == []
 
+    def test_a_scheduled_run_files_its_own_entry(self, tmp_path):
+        """An IMAP poll on a timer has nobody looking either (STU-2069)."""
+        paths = tree(tmp_path, reports=[push_report(input_path="dumps/d.json",
+                                                    trigger="schedule")])
+        assert file_it(paths) == ["r1"]
+        assert entries(paths)[0]["verdict"].startswith(UNREVIEWED)
+
     def test_an_already_audited_run_is_not_filed_over(self, tmp_path):
         paths = tree(tmp_path, reports=[push_report()],
                      audited=[audit_entry(run_id="r1", verdict="clean")])
