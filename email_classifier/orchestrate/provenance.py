@@ -33,6 +33,10 @@ _DETECTOR_PACKAGES = ("gliner", "transformers", "torch")
 # submodule, so the deployment's own commit does not name the code that ran (STU-1996).
 KERNEL_ROOT = Path(__file__).resolve().parents[2]
 
+# Tracked files the serving host rewrites by design (STU-1084, STU-1081), relative to
+# the deployment root. A change to them is not code served that no commit holds.
+HOST_WRITTEN = ("audits/audit_log.json", "audits/skipped.json")
+
 # The provider this host runs, whichever command was typed (STU-1128). Both
 # orchestrations pass it to Studio as `--provider`: the push path reads it here, and the
 # Makefile defaults `PROVIDER` to it for the Studio-orchestrated ones. Before that the
@@ -177,8 +181,10 @@ def collect(
 ) -> dict:
     commit = _git(repo_root, "rev-parse", "HEAD")
     # Untracked files are agent scratch, not the code that ran: counting them pinned
-    # git_dirty to true on every run (STU-824).
-    dirty = _git(repo_root, "status", "--porcelain", "-uno")
+    # git_dirty to true on every run (STU-824). The audit files are the serving host's
+    # own writes after every run, so counting them pinned it again (STU-2062).
+    dirty = _git(repo_root, "status", "--porcelain", "-uno", "--", ":/",
+                 *(f":(exclude){path}" for path in HOST_WRITTEN))
     return {
         "provider": provider,
         "git_commit": commit,

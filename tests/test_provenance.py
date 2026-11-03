@@ -49,6 +49,20 @@ def test_collect_ignores_untracked_files(tmp_path):
     assert collect("mock", repo / "rules.yaml", repo)["git_dirty"] is False
 
 
+def test_collect_ignores_the_hosts_own_audit_filing(tmp_path):
+    """The webhook rewrites the audit log after every run; only code dirt counts (STU-2062)."""
+    repo = tmp_path
+    (repo / "audits").mkdir()
+    (repo / "audits" / "audit_log.json").write_text("[]\n", encoding="utf-8")
+    (repo / "audits" / "skipped.json").write_text("[]\n", encoding="utf-8")
+    _repo(repo)
+    (repo / "audits" / "audit_log.json").write_text('[{"run_id": "r"}]\n', encoding="utf-8")
+    (repo / "audits" / "skipped.json").write_text('[{"run_id": "s"}]\n', encoding="utf-8")
+    assert collect("mock", repo / "rules.yaml", repo)["git_dirty"] is False
+    (repo / "rules.yaml").write_text("rules: [x]\n", encoding="utf-8")
+    assert collect("mock", repo / "rules.yaml", repo)["git_dirty"] is True
+
+
 def test_collect_degrades_outside_git_and_without_rules(tmp_path, monkeypatch):
     monkeypatch.delenv("EMAIL_CLASSIFIER_TRIGGER", raising=False)
     p = collect("claude-code", tmp_path / "nope.yaml", tmp_path)
