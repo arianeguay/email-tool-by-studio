@@ -74,9 +74,12 @@ python scripts/qa_coverage_gate.py --deployment-root reference-deployment --chec
 ```
 
 All three exit 0 on a clean tree. Rerunning a gate for real, which calls a model and
-rewrites its record, drops `--check`:
+rewrites its record, drops `--check`. The agents' tools run `${PYTHON:-.venv/bin/python}`,
+so export the same interpreter first; without it every tool call fails and the gate
+exits 4 without stamping:
 
 ```bash
+export PYTHON=$(command -v python) STUDIO_PYTHON_BIN=$(command -v python)
 python scripts/qa_gate.py --deployment-root reference-deployment
 python scripts/qa_coverage_gate.py --deployment-root reference-deployment --provider claude-code
 ```
