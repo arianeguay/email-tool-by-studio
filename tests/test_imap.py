@@ -162,6 +162,17 @@ def test_a_reply_threads_on_its_root_and_reads_without_the_quoted_parent():
     assert item["body_snippet"] == "Merci!"
 
 
+@pytest.mark.parametrize("quoted", [
+    "Le lun. 2 nov. 2026, à 10 h 00, Marc Tremblay <marc@example.com> a\nécrit :\n> Bonjour",
+    "On Mon, Nov 2, 2026 at 10:00 AM Marc <marc@example.com> wrote:\n> Hi",
+    "De : Marc\nEnvoyé : 2 novembre 2026\nObjet : Question\nBonjour",
+])
+def test_the_quoted_parent_is_cut_whatever_client_wrote_it(quoted):
+    message = projection.parse(_mail("m2", body=f"Parfait, merci.\n\n{quoted}"))
+
+    assert projection.message_body(message) == "Parfait, merci."
+
+
 def test_only_allowlisted_headers_reach_the_input():
     message = projection.parse(_mail("m1", extra={"List-Unsubscribe": "<mailto:x@y>", "X-Secret": "no"}))
 

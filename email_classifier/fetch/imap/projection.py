@@ -10,19 +10,25 @@ here: classification, tokenization and drafting must read what the sender wrote,
 not the mail it answers.
 """
 
+import functools
 import re
 from datetime import datetime, timezone
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from email.utils import parseaddr
 
+from email_classifier import lang
 from email_classifier.fetch.headers import allowlisted
 
 _ID = re.compile(r"<([^<>]+)>")
-# The attribution line a client writes above the quoted parent: "On <date>, <name>
-# wrote:" and its French form "Le <date>, <name> a écrit :".
-_ATTRIBUTION = re.compile(r"^(On .+ wrote:|Le .+ a écrit\s?:)\s*$", re.IGNORECASE)
-_FORWARD_MARK = re.compile(r"^-{2,}\s*(Original Message|Message d'origine)", re.IGNORECASE)
+# Gmail wraps a long attribution line, "Le <date>, <name> <address> a" / "écrit :",
+# which the lang pack's one-line markers miss (measured on Migadu's Sent, 2026-11-03).
+_WRAPPED_ATTRIBUTION = re.compile(r"^(?:Le|On) [^\n]{0,160}\n[^\n]{0,40}(?:écrit|wrote)\s*:", re.M)
+
+
+@functools.cache
+def _quote_markers() -> tuple[re.Pattern, ...]:
+    return (*lang.compiled_quote_markers(lang.deployment_config()), _WRAPPED_ATTRIBUTION)
 
 
 def parse(raw: bytes) -> EmailMessage:
@@ -53,13 +59,9 @@ def message_body(message: EmailMessage) -> str:
     part = message.get_body(preferencelist=("plain", "html"))
     if part is None:
         return ""
-    lines = []
-    for line in part.get_content().splitlines():
-        if _ATTRIBUTION.match(line.strip()) or _FORWARD_MARK.match(line.strip()):
-            break
-        if not line.startswith(">"):
-            lines.append(line)
-    return "\n".join(lines).strip()
+    text = part.get_content()
+    cuts = [match.start() for marker in _quote_markers() if (match := marker.search(text))]
+    return text[:min(cuts, default=len(text))].strip()
 
 
 def iso_date(received: datetime) -> str:
