@@ -43,7 +43,7 @@ class Draft:
 
     thread_id: str
     attempt: int
-    item: dict
+    item: dict | None
     draft: dict
 
     @property
@@ -78,12 +78,15 @@ def items_from_journal(lines) -> dict[str, dict]:
     return items
 
 
-def drafts_from_journal(lines) -> list[Draft]:
+def drafts_from_journal(lines, strict: bool = True) -> list[Draft]:
     """Every draft a run wrote, paired with its item.
 
     Keyed by thread plus attempt rather than by position: the fan-out interleaves, and
     `stage_complete` carries the root run id, so which child a completion belongs to is
     not readable off the ordering. `write-draft`'s own output names its thread.
+
+    `strict=False` yields an unmatched draft with `item=None` instead of raising, for a
+    reader that needs the body and not the item (STU-2061).
     """
     items: dict[str, dict] = {}
     outputs: list[dict] = []
@@ -97,12 +100,12 @@ def drafts_from_journal(lines) -> list[Draft]:
     drafts = []
     for output in outputs:
         thread_id = output["thread_id"]
-        if thread_id not in items:
+        if thread_id not in items and strict:
             raise OrphanDraft(
                 f"draft on thread {thread_id} has no {_ITEM_STAGE} item in the journal"
             )
         attempts[thread_id] += 1
-        drafts.append(Draft(thread_id, attempts[thread_id], items[thread_id], output))
+        drafts.append(Draft(thread_id, attempts[thread_id], items.get(thread_id), output))
     return drafts
 
 
