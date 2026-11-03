@@ -1,0 +1,18 @@
+name: draft-corrections
+description: Which drafting rules would explain the corrections a reviewer made across many pairs?
+version: 1
+
+# STU-1108. `scripts/correction_rules.py` hands this every redacted (draft, sent) pair of
+# a window the reviewer changed, in one item, and asks for candidate rules. One call over
+# the whole set and not one per pair: a rule is a pattern across pairs, and a reader that
+# saw one pair at a time could only propose rules nobody could count support for.
+stages:
+  - name: draft-corrections
+    kind: qa
+    agent: correction-reader
+    contract: draft-corrections
+    ralph:
+      max_attempts: 2
+    context:
+      include:
+        - input

@@ -1,0 +1,12 @@
+name: draft-corrections
+version: 1
+
+schema:
+  required_fields:
+    - candidates
+    - unexplained
+
+# No `post_validation`: a candidate is a proposal a human reads, not a verdict the
+# engine should end as `rejected`. `correction_rules.candidates_of` checks that every
+# pair is either cited by a candidate or named in `unexplained`, and never both, and
+# records `incoherent` otherwise (the `draft-coverage` discipline, STU-1140).
