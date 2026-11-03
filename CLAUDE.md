@@ -89,6 +89,8 @@ make pilot-gate OFFLINE=1  # the same, without a Graph call: is there a denomina
 make correction-rules  # candidate drafting rules from the reviewer's corrections (STU-1108)
 make prune         # purge plan for run artifacts, nothing is deleted (STU-932)
 make prune-apply   # the cron line: purges for real, silent when there is nothing
+make commitments   # promises drafted replies made that nobody settled (STU-1065)
+make commitment-settle ID=<id> NOTE='...'  # a human did it, or decided nothing is owed
 ```
 
 `make redraft` takes up a single thread, named by the link the web mailbox gives:
@@ -1774,6 +1776,23 @@ Consequences, each one tested:
   the direction of STU-912. `scripts/audit_run.py drafts` therefore reads both files, one
   entry per execution and never folded (STU-1111): a resume re-selects from what is left,
   so summing the `needs_reply` would count the same conversations twice.
+- `email_classifier/commitments.py` + `scripts/commitments.py`: what a drafted reply
+  commits someone to (STU-1065). A body that says a message was forwarded, or that an
+  answer will follow, is true only because a human does it before sending, so the
+  obligation rides on the draft staying a draft. `write-draft` appends each such sentence
+  to `logs/drafts/commitments.jsonl` beside the journal, once the mailbox accepted the
+  body, so a run that dies before `drafts-post` has already recorded it (STU-917). An entry
+  is keyed by conversation, draft and sentence, so a re-run adds nothing; a rewrite of the
+  same draft that drops the sentence marks it `withdrawn` (the group's next attempt fixing
+  what the reviewer rejected is the usual case); otherwise only `make commitment-settle`,
+  with a mandatory note, closes it, never a later run's silence. Detection is a pattern
+  list over claimed handoffs and promised follow-ups in French and English, not a field
+  the drafter fills: the drafter is the party told not to promise, so it would be asked to
+  report its own defect, and a contract field would make every deployment's drafter prose
+  a fingerprinted edit. The price is recall: a promise phrased outside the patterns is not
+  listed, so an empty list means no matched sentence, never no commitment. The sentence is
+  stored as the drafter wrote it, tokens included. A draft deleted by `undo` or `redraft`
+  leaves its entries open, the direction that over-reports.
 - `email_classifier/placeholder.py`: the drafter's `[À COMPLÉTER : ...]` marker
   (STU-2002) read outside the body (STU-2049). Drafts are plain text, so nothing in the
   Drafts list told a draft that needs input from one that does not. `holds_placeholder`

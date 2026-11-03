@@ -21,7 +21,7 @@ unexport ENV_FILE_KEYS UNRESOLVED_KEYS OFFLINE_GOALS
 # it is listed here, the direction a forgotten entry should fail in.
 # pull-webhook is listed because only its dispatch runs here: it reads WEBHOOK_SSH_HOST and
 # opens ssh to the serving host, which reads its own .env (STU-2066).
-OFFLINE_GOALS := test test-venv test-ner clean observe-spans-check qa-gate-check qa-coverage-gate-check signature-anchor-check pull-webhook
+OFFLINE_GOALS := test test-venv test-ner clean observe-spans-check qa-gate-check qa-coverage-gate-check signature-anchor-check pull-webhook commitments commitment-settle
 UNRESOLVED_KEYS := $(strip $(foreach k,$(ENV_FILE_KEYS),$(if $(filter op://%,$(value $k)),$k)))
 ifneq ($(UNRESOLVED_KEYS),)
 ifneq ($(filter-out $(OFFLINE_GOALS),$(or $(MAKECMDGOALS),default)),)
@@ -47,7 +47,7 @@ ifneq ($(shell test -e .env -o -L .env && test ! -r .env && echo unreadable),)
 $(warning .env is present and this account cannot read it, so every key it sets arrives unset. Run the target under the account that owns it; `make check-webhook` names that file and that account.)
 endif
 
-.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full mailbox-poll redraft fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate correction-rules voice-counts seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent promote test test-venv test-ner clean reset-state
+.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full mailbox-poll redraft commitments commitment-settle fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate correction-rules voice-counts seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent promote test test-venv test-ner clean reset-state
 
 DUMP     ?= dumps/gmail-dump.json
 OUTLOOK_DUMP ?= dumps/outlook-dump.json
@@ -201,6 +201,14 @@ redraft:             ## Delete the draft on one conversation and write a fresh o
 	@test -n "$(LINK)" || { echo "[ERROR] pass LINK=<outlook web link to the conversation>"; exit 1; }
 	$(PYTHON) scripts/redraft.py "$(LINK)" --out $(REDRAFT_INPUT) $(LIVE_PROVIDER_FLAG)
 	$(WITH_DETECTOR) studio run email-draft --input-file $(REDRAFT_INPUT) $(LIVE_PROVIDER_FLAG)
+
+commitments:         ## The promises drafted replies made that nobody has settled (STU-1065)
+	$(PYTHON) scripts/commitments.py
+
+commitment-settle:   ## Close one listed commitment (ID=, NOTE='what was done')
+	@test -n "$(ID)" || { echo "[ERROR] pass ID=<id from make commitments>"; exit 1; }
+	@test -n "$(NOTE)" || { echo "[ERROR] pass NOTE=<what was done, or why nothing is owed>"; exit 1; }
+	$(PYTHON) scripts/commitments.py settle $(ID) --note "$(NOTE)"
 
 run-fetch: audit-gate ## Read-only fetch then end-to-end run
 	$(WITH_DETECTOR) $(PYTHON) run_email.py --fetch --query "$(QUERY)" --max-results $(MAX) $(LIVE_PROVIDER_FLAG)
