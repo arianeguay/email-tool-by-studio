@@ -1,0 +1,38 @@
+name: classify-batch
+description: Classify a corpus of emails — deterministic Stage 1, then an LLM fan-out over the grey zone.
+version: 1
+
+# Inverted topology (STU-843): Studio orchestrates, Python is the leaf. `classify-pre`
+# runs the rule engine and builds the fan-out items, `classify-verdicts` runs the
+# unchanged `classify` pipeline once per escalated email, `classify-post` writes the
+# report. `on_failure: continue` on the call is the STU-392 bias: when the LLM path
+# dies, the deterministic verdicts stand and the run still produces a report.
+stages:
+  - name: classify-pre
+    kind: classification
+    executor: script
+    runtime: python
+    script: scripts/classify_pre.py
+    contract: classify-pre
+    timeout_ms: 300000
+    context:
+      include:
+        - input
+
+  - call: classify-verdicts
+    pipeline: classify-escalations
+    condition: stages.classify-pre.output.needs_verdict == true
+    on_failure: continue
+    input:
+      emails: "{{stages.classify-pre.output.escalated}}"
+
+  - name: classify-post
+    kind: classification
+    executor: script
+    runtime: python
+    script: scripts/classify_post.py
+    contract: classify-post
+    timeout_ms: 300000
+    context:
+      include:
+        - all_stage_outputs

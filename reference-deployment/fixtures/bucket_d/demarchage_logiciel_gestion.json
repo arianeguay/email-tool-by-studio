@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_demarchage_logiciel_001",
+  "thread_id": "thread_ref_demarchage_logiciel_001",
+  "from_address": "partenariats@ecoles-logiciel-demo.example",
+  "subject": "Modernisez la gestion de votre école de musique",
+  "headers": {},
+  "body_snippet": "Nous aidons les écoles de musique à gérer leurs inscriptions et leur facturation. Seriez-vous disponible pour un appel de 15 minutes cette semaine pour découvrir notre solution?",
+  "date": "2026-09-06T11:00:00+00:00",
+  "provider_category": "promotions"
+}

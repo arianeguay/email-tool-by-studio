@@ -1,0 +1,13 @@
+providers:
+  # Claude Code provider: drives the LLM through the local `claude` CLI session — no
+  # ANTHROPIC_API_KEY needed. This reference deployment's own harnesses were frozen
+  # under this provider (STU-1459) since no API key is provisioned for a fictional
+  # organization.
+  claude-code: {}
+  # Kept for opt-in, matching the kernel's first deployment: `studio run ...
+  # --provider anthropic` (needs ANTHROPIC_API_KEY).
+  anthropic:
+    apiKey: ${ANTHROPIC_API_KEY}
+defaults:
+  provider: claude-code
+  model: claude-opus-4-8

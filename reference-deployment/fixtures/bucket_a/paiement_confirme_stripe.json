@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_paiement_confirme_001",
+  "thread_id": "thread_ref_paiement_confirme_001",
+  "from_address": "receipts@paiements-cantabile.example",
+  "subject": "Reçu de paiement mensuel",
+  "headers": {},
+  "body_snippet": "Votre paiement mensuel de 89,00$ a été traité avec succès le 1er septembre 2026. Aucune action requise.",
+  "date": "2026-09-01T04:00:00+00:00",
+  "provider_category": "primary"
+}

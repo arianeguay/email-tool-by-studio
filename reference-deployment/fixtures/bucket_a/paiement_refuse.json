@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_paiement_refuse_001",
+  "thread_id": "thread_ref_paiement_refuse_001",
+  "from_address": "j.gagnon77@example.com",
+  "subject": "Mon paiement a été refusé",
+  "headers": {},
+  "body_snippet": "Bonjour,\n\nJe viens de recevoir un courriel disant que mon paiement mensuel a été refusé. J'ai changé de carte récemment, c'est probablement ça. Qu'est-ce qui arrive si je ne règle pas ça rapidement? Est-ce que mon fils va manquer des cours?\n\nJulie",
+  "date": "2026-09-12T09:05:00+00:00",
+  "provider_category": "primary"
+}

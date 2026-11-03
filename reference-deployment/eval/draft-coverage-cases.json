@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ref-second-question-dropped",
+    "expected_verdict": "incomplete",
+    "gate": "A reply that answers a neighbouring question and never the one asked leaves the request unaddressed, however true the answer is.",
+    "source": "Authored for the reference deployment (STU-1459), the defect half of a pair, mirroring the kernel's first deployment's pair (eval/draft-coverage-cases.json, stu-1187/stu-1225) — there is no live pilot here to draw a real run pair from.",
+    "body_text": "Bonjour,\n\nJ'ai deux questions. D'abord, est-ce qu'il y a des cours le dimanche? Et ensuite, si mon fils manque un cours de guitare sans prevenir a l'avance, est-ce qu'il peut le reprendre quand meme?\n\nMerci d'avance,\n\nAndre",
+    "passes": [
+      {
+        "draft_body": "Bonjour,\n\nNon, nous n'offrons pas de cours le dimanche — nos cours ont lieu du lundi au samedi.\n\nBonne journée,\n\nL'équipe de Cantabile",
+        "verdict": "approved",
+        "critique": "",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "id": "ref-both-questions-answered-control",
+    "expected_verdict": "covered",
+    "gate": "Same conversation as ref-second-question-dropped, repaired: both requests addressed.",
+    "source": "Authored for the reference deployment (STU-1459), the control half of the pair.",
+    "body_text": "Bonjour,\n\nJ'ai deux questions. D'abord, est-ce qu'il y a des cours le dimanche? Et ensuite, si mon fils manque un cours de guitare sans prevenir a l'avance, est-ce qu'il peut le reprendre quand meme?\n\nMerci d'avance,\n\nAndre",
+    "passes": [
+      {
+        "draft_body": "Bonjour,\n\nNon, nous n'offrons pas de cours le dimanche — nos cours ont lieu du lundi au samedi. Pour un cours manqué sans préavis, il n'est malheureusement pas repris : une reprise n'est possible que si vous nous prévenez au moins 24h à l'avance.\n\nBonne journée,\n\nL'équipe de Cantabile",
+        "verdict": "approved",
+        "critique": "",
+        "issues": []
+      }
+    ]
+  }
+]

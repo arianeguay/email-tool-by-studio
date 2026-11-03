@@ -1,0 +1,9 @@
+name: fetch
+version: 1
+
+schema:
+  required_fields:
+    - run_id
+    - dump_path
+    - count
+    - provider

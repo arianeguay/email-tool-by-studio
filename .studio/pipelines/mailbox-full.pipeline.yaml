@@ -1,0 +1,49 @@
+name: mailbox-full
+description: Full mailbox pass — fetch, classify, apply, draft, in sequence under one run id
+version: 1
+
+# STU-846: the sequence the Makefile used to hand-chain (`make fetch` -> `make
+# run-batch` -> `make apply-plan`, run id copied by hand), expressed as call
+# stages. Restart from a boundary with
+#   studio replay <run-id> --restart --stage apply
+# (run ids: `studio status`). A failed child fails the run — RALPH retries live
+# inside each child's stages, so there is no outer retry loop. The one exception
+# is the drafts child, which is tolerated (see below).
+stages:
+  - call: fetch
+
+  # Only `fetch` reads the parent input: what to classify is the dump it just
+  # wrote, named after the run id it minted (STU-896). A `corpus` path coming
+  # from the input is a path every run shares, and overwrites.
+  - call: classify-batch
+    input:
+      corpus: "{{stages.fetch.output.dump_path}}"
+      run_id: "{{stages.fetch.output.run_id}}"
+      provider: "{{input.provider}}"
+      # The floor the fetch honoured, carried rather than re-resolved (STU-1123):
+      # the report records the bound its own corpus was read under, not the one
+      # that would hold if the classify stage were asked today.
+      start_date: "{{stages.fetch.output.start_date}}"
+      # And the mailbox it read them from, carried for the same reason (STU-1183):
+      # the report names the store its own ids resolve in, not the one this host
+      # happens to be pointed at whenever the classify stage runs.
+      mailbox: "{{stages.fetch.output.mailbox}}"
+
+  # Which report to apply, and to draft from, is what the classify child just
+  # produced. On a restart the parent's recorded stage outputs resolve this, so
+  # `apply` re-runs without re-fetching.
+  - call: apply
+    input:
+      report: "{{stages.classify-batch.output.report_path}}"
+      apply: "{{input.apply}}"
+
+  # Drafts last (STU-850), over the mail the classifier marked `needs_reply`. The
+  # only child allowed to fail: a mailbox with nothing to answer, or a drafting
+  # path that dies, must not retroactively fail the classification and apply that
+  # already happened. Drafts are created, never sent.
+  - call: drafts
+    on_failure: continue
+    input:
+      corpus: "{{stages.fetch.output.dump_path}}"
+      report: "{{stages.classify-batch.output.report_path}}"
+      provider: "{{input.provider}}"

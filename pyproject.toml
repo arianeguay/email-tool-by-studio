@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "email-tool-by-studio"
+version = "0.1.0"
+description = "Deterministic email classifier — Stage 1 rule engine"
+authors = [{name = "Ariane Guay"}]
+requires-python = ">=3.11"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+dependencies = [
+    "pyyaml>=6.0",
+    "jsonschema>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    # `pytest -n auto` takes the suite without the `ner` extra from ~32s to ~10s, which
+    # is what makes running all of it the default on a branch rather than a subset
+    # (STU-1005). On the `ner` job it is memory that bounds the workers, not cores:
+    # each one loads its own detector at ~1.76 GB resident (STU-938).
+    "pytest-xdist>=3.5",
+]
+fetch = [
+    "google-api-python-client>=2.0",
+    "google-auth-oauthlib>=1.0",
+    "google-auth>=2.0",
+]
+# Person detection (STU-890). Heavy — gliner pulls torch and transformers — and behind
+# an extra so the hermetic suite runs without it. Anything sending mail to an LLM at
+# anonymization.scope `full` needs it: the tokenizer refuses rather than skip names.
+# 0.2.27 is the floor: earlier releases break on huggingface_hub >= 1.0.
+# Upper-bounded, transitives included: tokenization is upstream of every span GLiNER
+# returns, so a `transformers` minor bump can move name-detection recall — the gate on
+# `scope: full` — between two runs with nothing in the repo changing (STU-919). The
+# versions a run actually loaded land in `provenance.detector_stack`.
+# `make eval-spans` is what fails when a widened bound moves a span (STU-925).
+ner = [
+    "gliner>=0.2.27,<0.3",
+    "transformers>=5.13,<5.14",
+    "torch>=2.13,<2.14",
+]
+fetch-outlook = [
+    "msal>=1.28",
+    "requests>=2.31",
+]
+webhook = [
+    "email-tool-by-studio[fetch]",
+    "flask>=3.0",
+    # Serves the app in one process. A forking server would give each worker its own
+    # queue-draining thread, and every notification would be classified twice.
+    "waitress>=3.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["email_classifier"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "real_ner: asserts on a detected name, so it wants GLiNER and not the stub detector",
+    "requires_gliner: needs the `ner` extra and its weights; skipped when either is missing",
+]

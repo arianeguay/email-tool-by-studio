@@ -1,0 +1,34 @@
+# Cantabile's own taxonomy — this deployment's bucket shape, not the kernel's (STU-1459).
+#
+# Modeled on the kernel's first deployment (../../rules/taxonomy.yaml) to prove the
+# shape `core/contract.py` requires (N totally-ordered buckets, each with its own
+# allowed actions, an optional clamp fallback, and its own subtypes) is independent of
+# what those buckets are called or for. Nothing below is copied from that deployment's content —
+# only the structure and the fixed kernel action vocabulary (keep_visible, label_archive,
+# mark_for_delete, needs_reply, escalate_to_llm) are shared.
+#
+# `buckets` is ordered highest precedence first, same rule as the first deployment's: list order is the
+# "when in doubt, default to A" rule stated once, here.
+buckets:
+  - name: A
+    allowed_actions: [keep_visible, needs_reply]
+    clamp: keep_visible
+    subtypes:
+      - human_question
+      - payment_issue
+      - safety_incident
+  - name: B
+    allowed_actions: [label_archive, keep_visible]
+    clamp: label_archive
+    subtypes:
+      - lesson_reminder
+      - recital_confirmation
+  - name: C
+    allowed_actions: [label_archive, mark_for_delete]
+    subtypes:
+      - newsletter
+      - instrument_store_promo
+  - name: D
+    allowed_actions: [mark_for_delete, label_archive]
+    subtypes:
+      - cold_solicitation

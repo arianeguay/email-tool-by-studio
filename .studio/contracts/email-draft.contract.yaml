@@ -1,0 +1,30 @@
+name: email-draft
+version: 1
+
+# required_fields is a cheap presence gate; `sources_used` non-empty and the rest
+# of the grounding rules are what the QA stage exists for (STU-326 owns them).
+schema:
+  required_fields:
+    - thread_id
+    - draft_body
+    - confidence
+    - sources_used
+
+  # `sources_used` as a bare string can only ever carry one source, and a draft that
+  # takes its facts from the skill and its phrasing from a precedent has two
+  # (STU-872).
+  # The type check is what makes the second one survivable; RALPH retries a scalar.
+  fields:
+    sources_used:
+      type: array
+      items:
+        type: string
+
+# No anti-theatre gate any more: the draft the agent describes is the draft
+# `write-draft` puts in the mailbox, so there is nothing left to claim (STU-1030).
+# What remains is a loop guard over the reading tools — the site and precedent
+# searches (STU-871, STU-872) and the memory reads and writes around them
+# (STU-873). minimum/maximum count every tool alike, and a draft grounded entirely
+# in the skill calls none of them, so there is no floor.
+tool_calls:
+  maximum: 16

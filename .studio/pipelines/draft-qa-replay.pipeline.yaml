@@ -1,0 +1,36 @@
+name: draft-qa-replay
+description: Judge one already-written draft — the QA half of `email-draft`, replayed.
+version: 1
+
+# The bake-off harness of STU-1014: `email-draft` without its drafter, so two models
+# can be scored on one corpus of drafts nobody rewrote in between.
+#
+# `replay-draft` is a script that echoes a recorded `generate-draft` output, which is
+# what makes the reviewer's `previous_stage_output` the shape production gives it.
+# Nothing else about the QA stage moves: same agent, same `draft-qa` contract. The
+# contract's post-validation still fires, so a rejected verdict ends this pipeline as
+# `rejected` rather than restarting a group — the harness reads the verdict off the
+# stage either way, and reusing the contract keeps one statement of what the judge
+# outputs instead of two that can drift.
+stages:
+  - name: replay-draft
+    kind: drafting
+    executor: script
+    runtime: python
+    script: scripts/qa_replay_draft.py
+    contract: qa-replay-draft
+    timeout_ms: 60000
+    context:
+      include:
+        - input
+
+  - name: draft-qa
+    kind: qa
+    agent: draft-reviewer
+    contract: draft-qa
+    ralph:
+      max_attempts: 2
+    context:
+      include:
+        - input
+        - previous_stage_output

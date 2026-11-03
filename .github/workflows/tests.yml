@@ -1,0 +1,54 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  # Keyed on the commit for a push, on the ref for a PR. `github.ref` alone is
+  # `refs/heads/main` for every merge, so with cancel-in-progress each merge killed
+  # the previous one's run: on 2026-08-28 three merges landed in eight minutes and
+  # two of them (#231, #233) went onto main with their CI cancelled rather than
+  # finished. A superseded PR run is genuinely waste; a superseded main run is the
+  # only verification that commit will ever get.
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ── the gate on every push ──────────────────────────────────────────────────
+  #
+  # The suite without the `ner` extra: 1539 tests, and the claim CLAUDE.md makes
+  # about STU-857 turned into something a machine checks. `gliner` absent is what
+  # makes the ~40 person-detection tests skip, so nothing here needs deselecting.
+  #
+  # `make test` is this job, locally (STU-1059): same extras, same `-n auto`, in a
+  # venv the target creates and reuses. Keep the two installs identical — the point
+  # of the target is that a branch's default check is the set of tests run here.
+  hermetic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `audit_run.py log-check` re-derives the shas a schema_note pins by
+          # asking git for them, so a shallow clone reads every pin as
+          # unverifiable (STU-914). Its regression test skips rather than fails,
+          # which would make this job green for the wrong reason.
+          fetch-depth: 0
+
+      - name: Python venv
+        # The runner's python3, not setup-python: its 3.11 finds libpython only through
+        # LD_LIBRARY_PATH, which tests spawning an interpreter in a scrubbed env drop.
+        run: |
+          python3 -m venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Install
+        # `webhook` pulls flask: without it seven test_webhook_* modules skip as a
+        # body, and a job that reports 130 fewer tests looks the same as one that
+        # passes them.
+        run: pip install -e ".[dev,webhook]" pytest-xdist
+
+      - name: Test
+        run: python -m pytest -q -n auto
+

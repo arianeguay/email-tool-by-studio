@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_demarchage_assurance_001",
+  "thread_id": "thread_ref_demarchage_assurance_001",
+  "from_address": "ventes@assurance-express-qc.example",
+  "subject": "Protégez vos instruments de musique dès aujourd'hui",
+  "headers": {},
+  "body_snippet": "Bonjour, avez-vous pensé à assurer les instruments de musique de votre famille? Notre équipe peut vous offrir un tarif préférentiel. Répondez à ce courriel pour en savoir plus.",
+  "date": "2026-09-13T16:00:00+00:00",
+  "provider_category": "promotions"
+}

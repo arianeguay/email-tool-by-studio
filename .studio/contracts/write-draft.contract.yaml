@@ -1,0 +1,13 @@
+name: write-draft
+version: 1
+
+# What `draft-qa` reads: the drafting stage's output, plus the id of the draft the
+# mailbox now holds (STU-1030). The reviewer's `previous_stage_output` keeps the
+# shape it had when the agent wrote the draft itself — only the writer changed.
+schema:
+  required_fields:
+    - thread_id
+    - draft_id
+    - draft_body
+    - confidence
+    - sources_used

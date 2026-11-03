@@ -1,0 +1,14 @@
+name: qa-replay-draft
+version: 1
+
+# The `email-draft` contract, minus its anti-theatre gate: a script makes no tool
+# calls, and the draft it echoes was written by a real one in the run being replayed
+# (STU-1014). Required fields stay, so a journal that stops carrying one of them
+# fails the replay instead of quietly handing the reviewer a draft with a hole in it.
+schema:
+  required_fields:
+    - thread_id
+    - draft_id
+    - draft_body
+    - confidence
+    - sources_used

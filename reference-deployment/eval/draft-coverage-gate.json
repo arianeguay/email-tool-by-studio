@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-03",
+  "run_id": "fd90af9f-e83b-4f77-900c-5c5283977bc2",
+  "provider": "claude-code",
+  "studio_version": "0.29.0",
+  "cases": 2,
+  "read": [
+    "ref-second-question-dropped",
+    "ref-both-questions-answered-control"
+  ],
+  "sources": {
+    "agent": "1a03728626cd",
+    "contract:draft-coverage": "0d2183a60662",
+    "pipeline": "a1301ec9e091",
+    "invariants": "e5df71a45f6c",
+    "corpus": "b968443fedea"
+  },
+  "digest": "cb3fbd04c18af919dc9964946f4823e2e64f089c55e32382873acc01aefb2874"
+}

@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_question_horaire_double_001",
+  "thread_id": "thread_ref_question_horaire_double_001",
+  "from_address": "a.cote.musique@example.com",
+  "subject": "Deux questions rapides",
+  "headers": {},
+  "body_snippet": "Bonjour,\n\nJ'ai deux questions. D'abord, est-ce qu'il y a des cours le dimanche? Et ensuite, si mon fils manque un cours de guitare sans prévenir à l'avance, est-ce qu'il peut le reprendre quand même?\n\nMerci d'avance,\n\nAndré",
+  "date": "2026-09-16T08:30:00+00:00",
+  "provider_category": "primary"
+}

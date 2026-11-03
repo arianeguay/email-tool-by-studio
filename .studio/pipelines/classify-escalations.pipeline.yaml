@@ -1,0 +1,16 @@
+name: classify-escalations
+description: Fan out `classify` over the escalated emails — one child run per email.
+version: 1
+
+# The item input IS the resume key, so what busts the cache is declared by what
+# `classify-pre` puts in each item: the email fields, plus `prompt_fingerprint` (agent,
+# skill, contract, invariants, anonymization scope) and `stage1_fingerprint` (the rules'
+# effect on that one email). An unchanged corpus replays for free; a promotion into
+# rules/ only recomputes the emails whose Stage-1 outcome it actually changed.
+stages:
+  - map: classify
+    over: input.emails
+    pipeline: classify
+    resume: true
+    concurrency: 4
+    on_item_failure: collect-all

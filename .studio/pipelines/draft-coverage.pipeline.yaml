@@ -1,0 +1,27 @@
+name: draft-coverage
+description: Was the sender answered? One cold read of a finished reply against her message.
+version: 1
+
+# The measurement of STU-1140. `make qa-erosion` holds the draft still and lets only the
+# feedback move, so it cannot see a failure that travels *through* the rewrite;
+# `make draft-bakeoff` lets the draft move but varies the model too, so a flip has two
+# things to attribute it to. What both miss is the run that motivated this: the reviewer
+# told the drafter that the one grounded fact was the whole of what could be said, the
+# drafter wrote only that fact, and the reviewer approved its own instruction coming back
+# — while the question the parent actually asked went unanswered.
+#
+# So this asks the only question that makes that a defect rather than an ordinary
+# convergence, and asks it of the message rather than of the sequence: does the body that
+# shipped address what she wrote in? One stage, no group, no feedback, and a reader that
+# has never seen the draft's history — the reviewer's critique is the suspect, so it is
+# not in the prompt.
+stages:
+  - name: draft-coverage
+    kind: qa
+    agent: coverage-reader
+    contract: draft-coverage
+    ralph:
+      max_attempts: 2
+    context:
+      include:
+        - input

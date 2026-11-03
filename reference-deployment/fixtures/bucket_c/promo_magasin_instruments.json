@@ -1,0 +1,13 @@
+{
+  "message_id": "msg_ref_promo_instruments_001",
+  "thread_id": "thread_ref_promo_instruments_001",
+  "from_address": "promo@magasin-instruments.example",
+  "subject": "Rabais de 20% sur les guitares acoustiques",
+  "headers": {
+    "List-Unsubscribe-Post": "One-Click",
+    "List-Unsubscribe": "<mailto:unsub@magasin-instruments.example>"
+  },
+  "body_snippet": "Profitez de 20% de rabais sur toute notre sélection de guitares acoustiques jusqu'à la fin du mois. Visitez notre boutique en ligne.",
+  "date": "2026-09-08T15:00:00+00:00",
+  "provider_category": "promotions"
+}

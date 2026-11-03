@@ -1,0 +1,56 @@
+name: draft-bakeoff
+description: Author one reply under QA — `email-draft` with the mailbox write stood down.
+version: 1
+
+# The bake-off harness of STU-1073, the mirror of `draft-qa-replay` one stage earlier:
+# that pipeline is `email-draft` without its drafter, so two judges can rule on one
+# corpus of drafts; this one is `email-draft` without its mailbox write, so two drafters
+# can author over one corpus of conversations and be ruled on by the same judge.
+#
+# Everything that decides a verdict is production's: same two agents, same contracts,
+# same group and the same `max_iterations`, so a rejection here costs the iteration it
+# costs in production — which is the whole point, the number being cost per accepted
+# draft rather than cost per call.
+#
+# `seal-draft` stands where `write-draft` does because the reviewer reads the stage
+# before it: it hands on the draft with the `draft_id` a mailbox write would have
+# returned, so `previous_stage_output` keeps the shape production gives it. It writes
+# nothing — a bake-off authors the same conversation once per arm per repeat, and
+# every one of those would otherwise land in the mailbox and in the drafts journal.
+stages:
+  - group: draft-review
+    max_iterations: 3
+    stages:
+      - name: generate-draft
+        kind: drafting
+        agent: drafter
+        contract: email-draft
+        ralph:
+          max_attempts: 3
+          retry_strategy: prompt_escalation
+        context:
+          include:
+            - input
+            - group_feedback
+
+      - name: seal-draft
+        kind: drafting
+        executor: script
+        runtime: python
+        script: scripts/seal_draft.py
+        contract: qa-replay-draft
+        timeout_ms: 60000
+        context:
+          include:
+            - previous_stage_output
+
+      - name: draft-qa
+        kind: qa
+        agent: draft-reviewer
+        contract: draft-qa
+        ralph:
+          max_attempts: 2
+        context:
+          include:
+            - input
+            - previous_stage_output

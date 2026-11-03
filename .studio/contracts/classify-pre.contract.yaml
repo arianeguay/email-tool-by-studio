@@ -1,0 +1,11 @@
+name: classify-pre
+version: 1
+
+schema:
+  required_fields:
+    - run_id
+    - needs_verdict
+    - escalated
+    - stage1
+    - prompt_fingerprint
+    - paths

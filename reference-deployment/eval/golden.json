@@ -1,0 +1,67 @@
+{
+  "msg_ref_confirmation_spectacle_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_demarchage_assurance_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_demarchage_logiciel_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_incident_chute_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_infolettre_cantabile_001": {
+    "path": "deterministic",
+    "bucket": "C",
+    "action": "label_archive"
+  },
+  "msg_ref_inscription_question_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_newsletter_generale_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_paiement_confirme_001": {
+    "path": "deterministic",
+    "bucket": "A",
+    "action": "keep_visible"
+  },
+  "msg_ref_paiement_refuse_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_promo_instruments_001": {
+    "path": "deterministic",
+    "bucket": "C",
+    "action": "label_archive"
+  },
+  "msg_ref_question_horaire_double_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_question_retrait_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  },
+  "msg_ref_rappel_cours_001": {
+    "path": "llm",
+    "bucket": null,
+    "action": null
+  }
+}

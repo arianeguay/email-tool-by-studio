@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_infolettre_cantabile_001",
+  "thread_id": "thread_ref_infolettre_cantabile_001",
+  "from_address": "infolettre@cantabile-musique.example",
+  "subject": "Nouvelles du mois de septembre",
+  "headers": {},
+  "body_snippet": "Dans ce numéro: nos nouveaux professeurs, le calendrier des spectacles et un rabais sur les cours d'été.",
+  "date": "2026-09-05T10:00:00+00:00",
+  "provider_category": "primary"
+}

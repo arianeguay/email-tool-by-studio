@@ -1,0 +1,34 @@
+# Reference taxonomy (STU-1461) — a template to copy, never an implicit fallback.
+#
+# The kernel ships this file but never reads it: a deployment with no taxonomy of its
+# own refuses to run rather than silently classifying under somebody else's buckets
+# (see `email_classifier.core.contract.load_taxonomy`). Copy this file to your
+# deployment's own `rules/taxonomy.yaml` and edit the bucket names, the actions each
+# one allows and its subtypes — the kernel only enforces the *shape* below, never
+# these specific letters.
+#
+# Shape a taxonomy must have:
+#   - `buckets` is a non-empty, ordered list — first listed is highest precedence, the
+#     one a multi-message conversation reconciles to when its messages disagree.
+#   - each bucket names at least one `allowed_actions`, drawn only from the kernel's
+#     own action vocabulary: keep_visible, label_archive, mark_for_delete, needs_reply.
+#     (escalate_to_llm is the universal escalation hatch and is implicitly valid for
+#     every bucket; it is never listed here.)
+#   - `clamp` is optional per bucket: the action to fall back to when a conversation's
+#     most recent message carries an action this bucket does not allow. Needed only for
+#     a bucket whose allowed_actions is not already a superset of every
+#     lower-precedence bucket's — most deployments need it on their highest-precedence
+#     bucket or two, and rarely need it at all further down.
+#   - `subtypes` is this bucket's slice of the subtype vocabulary — free text lets an
+#     LLM spell one concept three ways in a single run, so keep every entry one ASCII,
+#     lower_snake_case token.
+buckets:
+  - name: KEEP
+    allowed_actions: [keep_visible, needs_reply]
+    clamp: keep_visible
+    subtypes:
+      - example_subtype
+  - name: ARCHIVE
+    allowed_actions: [label_archive, mark_for_delete]
+    subtypes:
+      - example_subtype

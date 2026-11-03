@@ -1,0 +1,46 @@
+# The hold rules the first deployment wrote (STU-2003), copied as a fixture for the
+# mechanism's tests: a deployment's own file lives in its rules/, which the kernel has none of.
+#
+# Mail the classifier rightly marks `needs_reply` but this deployment answers by hand,
+# so `drafts-pre` writes no draft for it (STU-2003). Read by
+# `email_classifier.orchestrate.drafts.load_holds`; absent, nothing is held.
+#
+# Each key is the reason the stage line records under `selection.held`, so
+# `audit_run.py drafts` counts it apart from the mailbox's own holds. A rule matches the
+# latest message's own text, its quote cut on the lang pack's markers, case-insensitive:
+# every `all` pattern must match, no `none` pattern may, and the text must fit
+# `max_words` when set, and carry a quote below it when `quoted` is. The first matching
+# rule in file order wins.
+#
+# Keyword rules, because the verdict carries no signal for either shape: both came back
+# `A`/`human_real`/`needs_reply`, and `reasoning` is free text. Narrow on purpose: a
+# false hold costs one draft on a mail a human still sees in the Inbox, a broad one
+# hides drafts the reviewer does use.
+holds:
+  # A parent contesting a team selection (runs 58fe0571, b68be5d9, f2729d60): the
+  # reviewer consults the evaluators and writes the reply herself, and the draft could
+  # only deflect or promise a follow-up no source backs. Needs both a decision already
+  # made, in the past tense, and a request to understand it, so a question about when
+  # or how selections happen is still drafted. Misses an appeal that names neither the
+  # announcement nor a player left out, or asks nothing in these words.
+  selection_appeal:
+    all:
+      - 'suite (?:de|à) (?:l[''’]annonce de )?la composition|\bpas (?:non plus |avoir |été )*(?:retenue?s?|s[ée]lectionn[ée]e?s?)\b|[ée]cart[ée]e?s? de l[''’][ée]quipe'
+      - 'comprendre|explication|expliquer|[ée]clairer|crit[èe]res|reconsid[ée]r'
+  # A short thanks closing an exchange the club opened (runs 70ba57e2, be7c09c2): the
+  # reviewer answers with a reaction, and a draft is noise in Drafts. `quoted` asks for
+  # the club's message quoted below the sender's text, the one trace that this answers
+  # us: a client that strips the quote from `uniqueBody` (Outlook) is missed, as is a
+  # thanks longer than 40 words. Parents often drop the question mark, so `none` lists
+  # the asking words the 2026-11-02 sweep of the serving host's drafted items found without one.
+  acknowledged:
+    quoted: true
+    max_words: 40
+    all:
+      - '\b(?:merci|thanks|thank you)\b(?!\s*(?:de\b|d[''’]))'
+    none:
+      - '\?'
+      - '\b(?:pouvez|pourriez|peux|pourrais|auriez|avez|est)[- ](?:vous|tu|ce)\b'
+      - '\b(?:savoir|quand|quel(?:le)?s?|combien|comment|pourquoi|possible|confirmer|rappeler|appeler|aviser|expliquer|questions?)\b'
+      - '\b(?:aimerai[st]?|aimerions|voudrai[st]?|voudrions|souhaiterai[st]?)\b'
+      - '\b(?:probl[èe]me|pas re[çc]u|trouve pas)'

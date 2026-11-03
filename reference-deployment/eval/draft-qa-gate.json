@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-03",
+  "run_id": "0e18f217-082e-4ff4-9abd-615f5ddb28b7",
+  "provider": "claude-code",
+  "studio_version": "0.29.0",
+  "cases": 2,
+  "held": [
+    "ref-claimed-verification",
+    "ref-invented-price"
+  ],
+  "sources": {
+    "agent": "cf682183407b",
+    "contract:draft-qa": "6557341b482c",
+    "contract:qa-replay-draft": "e3ea684c9ecf",
+    "pipeline": "a2154663aeca",
+    "invariants": "e5df71a45f6c",
+    "skill:org-facts": "0767d603fe3c",
+    "skill:org-voice": "394c00f33e39",
+    "tool:org-web": "f12dcbcc78b3",
+    "corpus": "4249b4322162"
+  },
+  "digest": "c1e0065e30ae1f54567b95769330f4fd30728d8932a1ba152387469ccdfe6f12"
+}

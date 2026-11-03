@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_rappel_cours_001",
+  "thread_id": "thread_ref_rappel_cours_001",
+  "from_address": "rappels@cantabile-musique.example",
+  "subject": "Rappel: cours demain à 16h30",
+  "headers": {},
+  "body_snippet": "Ceci est un rappel automatique: votre cours de violon est prévu demain à 16h30 avec votre professeur habituel. Aucune action requise de votre part.",
+  "date": "2026-09-17T18:00:00+00:00",
+  "provider_category": "primary"
+}

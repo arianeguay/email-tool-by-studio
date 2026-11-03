@@ -1,0 +1,82 @@
+name: email-draft
+description: Draft the reply to one email, under QA — the leaf of the drafts fan-out.
+version: 1
+
+# The showcase of two Studio features at once (STU-850). The group is the feedback
+# loop: `draft-qa` is the last stage, so its `rejected` — a post-validation
+# rejection, not a failure — clears the group's outputs and re-runs
+# `generate-draft` with the critique in `group_feedback`. Iterations exhausted
+# leaves the item rejected, and the draft the mailbox holds is the last one
+# written: `upsert_reply_draft` rewrites the conversation's draft rather than
+# adding one.
+#
+# `write-draft` sits between them because the mailbox write is the run's, not the
+# model's (STU-1030). Held by the agent it fired on every revision — 28 writes for
+# 5 attempts on run 2498b0b3 — and no contract can cap one tool among several.
+# Here it happens once per attempt, on the body the stage before it settled on,
+# so the `draft_body` the reviewer judges is the preimage of what reached Graph —
+# the same string, before the keymap restores the real names into it.
+stages:
+  - group: draft-review
+    max_iterations: 3
+    stages:
+      - name: generate-draft
+        kind: drafting
+        agent: drafter
+        contract: email-draft
+        # Per attempt; frees a concurrency-2 fan-out slot from a wedged child
+        # (STU-1495, Studio 0.21.0). Measured 2026-09-18 over stage durations,
+        # which span retries: the serving host n=221 p50 58s p99 248s max 393s; laptop
+        # n=374 p99 231s. 480s is about twice the p99 and above the serving host's max.
+        timeout_ms: 480000
+        ralph:
+          max_attempts: 3
+          retry_strategy: prompt_escalation
+        context:
+          include:
+            - input
+            - group_feedback
+
+      - name: write-draft
+        kind: drafting
+        executor: script
+        runtime: python
+        script: scripts/write_draft.py
+        contract: write-draft
+        timeout_ms: 120000
+        context:
+          include:
+            - input
+            - previous_stage_output
+
+      # The reviewer does not receive `group_feedback`, and that is the whole of
+      # STU-1160's fix. Handed its own last critique, it read the critique as a
+      # description of the draft: four of the five flips STU-1148 measured are the
+      # reviewer writing the corrected reply inside its own prose and approving
+      # *that* — "The corrected draft reads:", while the served body still said
+      # « j'ai transféré votre message ». Prose telling it not to was the cheaper
+      # candidate and is the one this reviewer had already been observed to reason
+      # past (STU-1113), so the channel goes instead of the instruction.
+      #
+      # Nothing in the loop needs it. The drafter's feedback comes from `draft-qa`'s
+      # own `issues`/`critique` through `post_validation`, not from what the reviewer
+      # reads, so the group still restarts and still carries the critique forward.
+      # What is removed is only the reviewer's memory of its own last pass, which is
+      # exactly the thing it was mistaking for evidence. It judges the body in
+      # `previous_stage_output` on its merits, every pass.
+      #
+      # It was never designed in: it arrived with the original wiring (STU-850) and
+      # carried no rationale of its own.
+      - name: draft-qa
+        kind: qa
+        agent: draft-reviewer
+        contract: draft-qa
+        # Same reasoning as generate-draft. Serving host n=221 p50 67s p99 261s max
+        # 375s; laptop n=866 p99 169s max 281s.
+        timeout_ms: 480000
+        ralph:
+          max_attempts: 2
+        context:
+          include:
+            - input
+            - previous_stage_output

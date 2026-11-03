@@ -1,0 +1,139 @@
+name: org_memory
+description: Facts the club learns by mail, written down once and read back on later runs (STU-873)
+version: 1
+
+commands:
+  - name: org_memory-read_memory
+    description: >
+      Read one memory in full, by the name its line in the index carries. Read a
+      memory only when its line looks like it answers the question in front of you.
+    parameters:
+      name:
+        type: string
+        required: true
+        description: The memory's name, exactly as the index spells it.
+      # The batch keymap, fixed by the run: a memory is redacted against it before
+      # it reaches you (STU-879), so the agent neither passes nor sees this.
+      keymap:
+        type: string
+        required: true
+        from_context: input.keymap
+    execute:
+      # Same PYTHON as the Makefile's other tools (STU-856). Every field the agent
+      # wrote goes in on stdin, inside a quoted heredoc: Studio substitutes
+      # `{{param}}` into the command verbatim, so a quote or a `$` in an argument
+      # would be the shell's before it was Python's.
+      type: shell
+      command: |
+        "${PYTHON:-.venv/bin/python}" -m email_classifier.club_memory read \
+          --keymap "{{keymap}}" << 'STUDIO_EOF'
+        {"name": {{name | json}}}
+        STUDIO_EOF
+      parse_output: json
+
+  - name: org_memory-remember
+    description: >
+      Write down a fact this email states that neither the skill nor the club's
+      site holds, so the next run answers it without asking again. Writing a name
+      that already exists replaces that memory.
+    parameters:
+      name:
+        type: string
+        required: true
+        description: >
+          Kebab-case slug naming the fact, letters and digits only
+          ("u15-practice-gym"), not a sentence and not a date.
+      description:
+        type: string
+        required: true
+        description: >
+          One line saying what the memory holds. This is the whole of what a later
+          run sees in the index, so it decides whether the file is ever opened.
+      source:
+        type: string
+        required: true
+        description: >
+          Who said it — the sender of the email you took it from, as the email
+          gives them. Keep anonymization tokens verbatim (PERSON_1, EMAIL_2).
+      fact:
+        type: string
+        required: true
+        description: >
+          The fact itself, in the words that make it usable months from now —
+          including what it applies to and any date it is bound by.
+    execute:
+      type: shell
+      command: |
+        "${PYTHON:-.venv/bin/python}" -m email_classifier.club_memory remember << 'STUDIO_EOF'
+        {"name": {{name | json}}, "description": {{description | json}},
+         "source": {{source | json}}, "fact": {{fact | json}}}
+        STUDIO_EOF
+      parse_output: json
+
+  - name: org_memory-flag_contradicted
+    description: >
+      Mark a memory the skill or a live page answers differently. Not for a memory
+      that answers what they hold nothing on — that one is used, not flagged. It
+      stays on disk, flagged in the index, for a human to delete or correct.
+    parameters:
+      name:
+        type: string
+        required: true
+        description: The memory's name, exactly as the index spells it.
+      reason:
+        type: string
+        required: true
+        description: >
+          One line naming the source that answers differently and what it says
+          instead. "The skill does not mention it" is not a reason to flag.
+    execute:
+      type: shell
+      command: |
+        "${PYTHON:-.venv/bin/python}" -m email_classifier.club_memory flag << 'STUDIO_EOF'
+        {"name": {{name | json}}, "reason": {{reason | json}}}
+        STUDIO_EOF
+      parse_output: json
+
+prompt_snippet: |
+  Some club facts never reach the website: a gym assigned in August, a fee the
+  board settled on, a date confirmed in a meeting. They arrive by mail, once, and
+  the club memory is where they are kept so nobody has to derive them twice.
+
+  `memory_index` in your input is the whole index — one line per memory, each with
+  its name, what it holds, the day it was learned and who said it. That line is all
+  you get for free. When one looks like it bears on the question, call
+  org_memory-read_memory(name) for the file; when none does, ignore them. An empty
+  `memory_index` means nothing has been learned yet, not that the answer is no.
+
+  A fact you take from a memory is cited in sources_used as `memory:<name>`.
+
+  Memories are anonymized like the mail. An indexed token (`PERSON_1`, `EMAIL_2`)
+  is the same person as everywhere else in your input and may be reused verbatim.
+  An index-free one (`PERSON_X`) is a value only that memory carried: never copy
+  it, never guess what it stood for, and write around it.
+
+  Precedence never changes: the organization's facts skill and a passage from the live
+  site both outrank a memory. That settles a disagreement. It does not decide who
+  answers a question only the memory holds.
+
+  A disagreement is two sources answering the same question differently — the skill
+  puts the U15 at Leblanc, the memory puts them at Sainte-Rose. There the skill wins
+  and org_memory-flag_contradicted(name, reason) is the correction; deleting the
+  memory is a human's call.
+
+  Silence is not disagreement. A skill line saying the club has not published a
+  figure, or that a question is answered by confirming later, is the skill telling
+  you it holds nothing — a fallback for when no source answers, not an answer that
+  outranks one. A memory carrying that fact is what answers: use it, cite it as
+  `memory:<name>`, and do not flag it. Flagging a memory for filling a gap makes it
+  unusable forever, which is the one thing this store exists to prevent.
+
+  Read the memory's date before leaning on it. A fact bound to last season is not
+  an answer about this one.
+
+  org_memory-remember(name, description, source, fact) writes a new fact down.
+  Call it only for something the email in front of you states that the skill and the
+  site do not, and that a later run would need: a decision, a date, an amount, an
+  assignment. Not for the question that was asked, not for anything you inferred,
+  and never for a fact you are unsure of — a wrong memory is read back as true for
+  months. Nothing obliges you to write one: most emails teach nothing durable.

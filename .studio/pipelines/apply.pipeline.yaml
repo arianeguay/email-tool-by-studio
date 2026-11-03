@@ -1,0 +1,15 @@
+name: apply
+description: Apply a classification report to the mailbox — dry-run unless the input says apply.
+version: 1
+
+stages:
+  - name: apply
+    kind: apply
+    executor: script
+    runtime: python
+    script: scripts/apply_report.py
+    contract: apply
+    timeout_ms: 900000
+    context:
+      include:
+        - input

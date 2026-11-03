@@ -1,0 +1,38 @@
+name: drafts
+description: Draft replies to the mail the classifier marked `needs_reply` — never sends.
+version: 1
+
+# The drafts arm of the topology (STU-850), same shape as `classify-batch`:
+# `drafts-pre` reads the classification report and builds the fan-out items,
+# `draft-fanout` runs `email-draft` once per pending email, `drafts-post` counts
+# what the mailbox actually received. `on_failure: continue` on the call keeps the
+# STU-392 bias: a dead drafting path still leaves a classified, applied mailbox.
+stages:
+  - name: drafts-pre
+    kind: drafting
+    executor: script
+    runtime: python
+    script: scripts/drafts_pre.py
+    contract: drafts-pre
+    timeout_ms: 300000
+    context:
+      include:
+        - input
+
+  - call: draft-fanout
+    pipeline: draft-items
+    condition: stages.drafts-pre.output.needs_draft == true
+    on_failure: continue
+    input:
+      emails: "{{stages.drafts-pre.output.pending}}"
+
+  - name: drafts-post
+    kind: drafting
+    executor: script
+    runtime: python
+    script: scripts/drafts_post.py
+    contract: drafts-post
+    timeout_ms: 300000
+    context:
+      include:
+        - all_stage_outputs

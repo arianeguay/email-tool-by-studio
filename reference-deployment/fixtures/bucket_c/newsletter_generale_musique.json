@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_newsletter_generale_001",
+  "thread_id": "thread_ref_newsletter_generale_001",
+  "from_address": "nouvelles@magazine-musique-quebec.example",
+  "subject": "5 conseils pour pratiquer un instrument à la maison",
+  "headers": {},
+  "body_snippet": "Cette semaine dans notre infolettre: 5 conseils pour aider votre enfant à pratiquer à la maison, une entrevue avec un professeur de piano, et nos recommandations d'écoute.",
+  "date": "2026-09-09T09:00:00+00:00",
+  "provider_category": "updates"
+}

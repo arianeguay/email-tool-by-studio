@@ -1,0 +1,36 @@
+.claude/settings.local.json
+.claude/worktrees/
+.env*
+!.env.example
+.superpowers/brainstorm/
+__pycache__/
+*.py[cod]
+.venv/
+# The ner-free suite's own venv, which `make test` creates and reuses (STU-1059).
+.venv-test/
+dist/
+*.egg-info/
+# No trailing slash: a worktree symlinks these from the main checkout, and a
+# directory pattern never matches a symlink.
+logs
+reports
+secrets
+dumps
+state/
+club-memory
+.superpowers/
+.studio/runs
+# The reference deployment (STU-1459) is a second .studio/ tree, so it grows its own
+# runs/ that this pattern's root anchor does not reach.
+reference-deployment/.studio/runs
+eval/seeded-golden.json
+rules/learned.yaml
+rules/learned_blacklist.yaml
+
+CLAUDE.local.md
+
+# Mail archives shared for corpus work — production mail, never committed.
+*.olm
+*.pst
+*.mbox
+.plans/

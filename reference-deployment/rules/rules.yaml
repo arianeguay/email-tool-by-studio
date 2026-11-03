@@ -1,0 +1,41 @@
+# Deterministic stage-1 rules — Cantabile reference deployment (STU-1459).
+# Order: bucket A -> B -> C -> D -> catch-all. AND-implicit, first-match-wins,
+# catch-all REQUIRED in last position (mirrors ../../rules/rules.yaml's own convention).
+#
+# Deliberately small: enough to prove the rule engine and taxonomy validation work
+# against bucket names other than the first deployment's and subtypes, not a production ruleset. Most of the
+# reference fixtures are written to fall through to `catch_all` and escalate to stage 2,
+# since that is what the harnesses this deployment exists for (classify-bakeoff,
+# qa-gate, qa-coverage-gate) need — a grey zone, not a solved inbox.
+
+rules:
+  - id: tuition_processor_receipt
+    conditions:
+      from_domain: paiements-cantabile.example
+    bucket: A
+    confidence: high
+    action: keep_visible
+
+  - id: cantabile_newsletter_archive
+    conditions:
+      from_address: infolettre@cantabile-musique.example
+    bucket: C
+    confidence: high
+    action: label_archive
+
+  # Same structural safety rule as the kernel's first deployment: a strict RFC 8058
+  # one-click unsubscribe header is a strong enough bulk-mail signal on its own.
+  - id: universal_oneclick_archive
+    conditions:
+      header_value:
+        List-Unsubscribe-Post: One-Click
+      guard: not_transactional
+    bucket: C
+    confidence: high
+    action: label_archive
+
+  - id: catch_all
+    conditions: {}
+    bucket: null
+    confidence: low
+    action: escalate_to_llm

@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_confirmation_spectacle_001",
+  "thread_id": "thread_ref_confirmation_spectacle_001",
+  "from_address": "spectacles@cantabile-musique.example",
+  "subject": "Confirmation: inscription au spectacle de décembre",
+  "headers": {},
+  "body_snippet": "Nous confirmons l'inscription de votre enfant au spectacle de décembre. Les détails (heure, lieu) suivront par courriel environ trois semaines avant l'événement.",
+  "date": "2026-09-11T13:00:00+00:00",
+  "provider_category": "primary"
+}

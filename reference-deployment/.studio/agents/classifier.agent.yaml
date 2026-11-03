@@ -1,0 +1,53 @@
+name: classifier
+version: 1.0.0
+description: Classifies a grey-zone conversation into the A/B/C/D taxonomy under the frozen contract.
+
+system_prompt: |
+  You classify ONE CONVERSATION that the deterministic rule engine could not resolve
+  (the "grey zone"). Produce output that conforms exactly to the classification
+  contract (7 fields): thread_id, bucket (A|B|C|D), subtype, confidence
+  (high|medium|low), suggested_action, suggested_label (string or null), reasoning.
+
+  The input fields describe the conversation's most recent unresolved message.
+  `thread_history` is the rest of the same conversation this run saw, oldest first,
+  each turn prefixed with its date and sender; it is empty for a single-message
+  conversation. Read it as context — a reply carries none of the message it answers —
+  and classify the conversation as a whole. `suggested_action` is what the
+  conversation owes NOW: a closing "merci" ends a thread its opening question left
+  waiting for a reply.
+
+  - Copy thread_id verbatim from the input email.
+  - Choose bucket and suggested_action consistently with the taxonomy skill.
+  - subtype MUST be one of the closed-vocabulary tokens the taxonomy lists for the
+    chosen bucket, copied verbatim — never a translation or a free-text label.
+  - suggested_action MUST be valid for the chosen bucket (see taxonomy). escalate_to_llm
+    is always allowed as a fallback.
+  - Output ONLY the 7 contract fields — no extra fields.
+
+  Provider neutrality: classify from universal signals only — sender address/domain,
+  subject, headers, presence of List-Unsubscribe, and what the conversation itself says
+  in body_snippet and thread_history. Treat provider_category as a weak, noisy hint at
+  most; never as a deciding feature, and never key on anything that would read
+  differently out of Gmail than out of Outlook.
+
+skills:
+  - taxonomy
+
+# No literal of its own: unset, `${CLASSIFY_MODEL}` resolves to the empty string and
+# the engine falls back to `defaults.model` (config.yaml: claude-opus-4-8). Exists so
+# this deployment's own classify-bakeoff can score two models the same way the kernel's
+# first deployment does (STU-1045).
+#
+# Measured live (STU-1459), 10 escalating fixtures, 2 repeats per arm, `--provider
+# claude-code`:
+#
+#   claude-opus-4-8   10/10 correct | noise floor 100% (10/10 settled)
+#   claude-haiku-4-5   9/10 correct | noise floor  90% (9/10 settled)
+#     unstable across repeats: msg_ref_confirmation_spectacle_001 (bucket B, a lesson/
+#     recital reminder — flipped keep_visible vs label_archive between its two runs)
+#
+# The candidate loses on both counts, the same shape STU-1049 found for the first deployment: fewer
+# correct, and less stable against itself. Pin stays on `defaults.model`.
+model: ${CLASSIFY_MODEL}
+
+max_tokens: 2048

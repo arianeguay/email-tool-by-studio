@@ -1,0 +1,12 @@
+{
+  "msg_ref_inscription_question_001": {"bucket": "A", "suggested_action": "needs_reply"},
+  "msg_ref_paiement_refuse_001": {"bucket": "A", "suggested_action": "needs_reply"},
+  "msg_ref_incident_chute_001": {"bucket": "A", "suggested_action": "needs_reply"},
+  "msg_ref_question_retrait_001": {"bucket": "A", "suggested_action": "needs_reply"},
+  "msg_ref_question_horaire_double_001": {"bucket": "A", "suggested_action": "needs_reply"},
+  "msg_ref_rappel_cours_001": {"bucket": "B", "suggested_action": "label_archive"},
+  "msg_ref_confirmation_spectacle_001": {"bucket": "B", "suggested_action": "label_archive"},
+  "msg_ref_newsletter_generale_001": {"bucket": "C", "suggested_action": "label_archive"},
+  "msg_ref_demarchage_assurance_001": {"bucket": "D", "suggested_action": "mark_for_delete"},
+  "msg_ref_demarchage_logiciel_001": {"bucket": "D", "suggested_action": "mark_for_delete"}
+}

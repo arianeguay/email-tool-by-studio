@@ -1,0 +1,44 @@
+name: mail_precedents
+description: Search the mailbox's prior mail for how the same question was answered before (STU-872)
+version: 1
+
+commands:
+  - name: mail_precedents-search_mail
+    description: >
+      Search the club's own mailbox — sent replies included — for messages on a
+      question, and return each match as its text and the date it was written.
+      Every match is anonymized before you see it.
+    parameters:
+      query:
+        type: string
+        required: true
+        description: >
+          A word or short phrase the earlier mail would contain ("remboursement",
+          "chaussures"). Search one idea at a time, not a whole sentence.
+    execute:
+      # Same PYTHON as the Makefile's other tools (STU-856).
+      type: shell
+      command: |
+        "${PYTHON:-.venv/bin/python}" -m email_classifier.precedents --query "{{query}}"
+      parse_output: json
+
+prompt_snippet: |
+  mail_precedents-search_mail(query) reads the club's earlier mail on a question —
+  what parents asked, and how the club answered. Search it when the question looks
+  like one this inbox has seen before.
+
+  A precedent is a model for the WORDING, never a source of fact. Reuse its
+  phrasing, its structure, its tone; a date, an amount or a policy still comes from
+  the skill or from the site, and one that appears only in a precedent does not go
+  in the draft — it may have been true that season and not this one.
+
+  Citing it is mandatory: a reply that follows a precedent's phrasing or structure
+  carries `precedent:<date>` in sources_used, with that match's `date` — alongside
+  the `club:` section keys and site URLs behind the facts, never instead of them.
+  QA searches the precedents too, and rejects borrowed wording that cites nothing.
+
+  The matches are anonymized third-party mail. `PERSON_X`, `EMAIL_X` and `NAME_X`
+  are placeholders: a person who is not your sender, or a proper noun the redactor
+  could not vouch for. Never copy one into the draft, never guess what it stood
+  for, and write around it. `matches: []` means the inbox has no precedent, which
+  is not a reason to invent one.

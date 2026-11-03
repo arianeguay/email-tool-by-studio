@@ -1,0 +1,21 @@
+name: draft-qa
+version: 1
+
+schema:
+  required_fields:
+    - verdict
+    - critique
+    - issues
+
+# Post-validation rejection: a well-formed output that says "rejected" is not a
+# failed stage, it is a rejected one — the group restarts from `generate-draft`
+# with `issues` and `critique` as the feedback, up to max_iterations.
+post_validation:
+  rejection_detection:
+    field: verdict
+    approved_values:
+      - approved
+    rejected_values:
+      - rejected
+    details_field: issues
+    summary_field: critique

@@ -1,0 +1,17 @@
+# Mock provider fixtures (`studio run … --provider mock`) — offline stage-2 runs.
+# Keyed by CONTRACT name, not stage name (the runner sets stage_name from
+# task.contract_name). The mock returns `output` verbatim, so it must pass the
+# classification contract (validate_cli runs against it like any real output).
+# The orchestrator keys verdicts on the input email, so the static thread_id here
+# never leaks into reports.
+stages:
+  classification:
+    output:
+      thread_id: mock-thread
+      bucket: C
+      subtype: product_newsletter
+      confidence: low
+      suggested_action: label_archive
+      suggested_label: mock/offline
+      reasoning: Static mock classification (offline deterministic replay).
+    tool_calls: []

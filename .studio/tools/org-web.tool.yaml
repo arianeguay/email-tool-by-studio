@@ -1,0 +1,41 @@
+name: org_web
+description: Live search over the club's site and the federation's — what the skill was frozen from (STU-871)
+version: 1
+
+commands:
+  - name: org_web-search_site
+    description: >
+      Search the club's public pages for a word or phrase and return the passages
+      that contain it, each with the URL it came from. The pages are fixed — you
+      choose the words, not the destination.
+    parameters:
+      query:
+        type: string
+        required: true
+        description: >
+          A word or short phrase, matched literally against the page text —
+          accents optional, not a regex. Search one idea at a time
+          ("calendrier", "chaussures"), not a whole sentence.
+    execute:
+      # Same PYTHON as the Makefile's other tools (STU-856).
+      type: shell
+      command: |
+        "${PYTHON:-.venv/bin/python}" -m email_classifier.websearch --query "{{query}}"
+      parse_output: json
+
+prompt_snippet: |
+  org_web-search_site(query) reads the club's site as it stands right now. The
+  skill is what someone copied off that site on a given day; the site is what it
+  says today. Search it before answering anything the skill leaves open — a date,
+  a calendar, a team, a coach's name.
+
+  Call it as many times as the question needs, with different words. Results come
+  back as passages, each with its `url`; a fact you take from one is cited by that
+  URL in sources_used, not by a `club:` section key.
+
+  `matches: []` means the words are not on those pages — say the answer will be
+  confirmed. It is not permission to invent one. A page in `errors` was
+  unreachable, which is also not an answer: fall back to the skill.
+
+  When a passage contradicts the skill, say what the site says and flag the
+  disagreement in your reasoning rather than picking a side silently.

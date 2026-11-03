@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_inscription_question_001",
+  "thread_id": "thread_ref_inscription_question_001",
+  "from_address": "m.tremblay.musique@example.com",
+  "subject": "Inscription pour ma fille de 6 ans",
+  "headers": {},
+  "body_snippet": "Bonjour,\n\nJ'aimerais inscrire ma fille de 6 ans à des cours de musique. Est-ce qu'il y a une date limite pour s'inscrire, ou est-ce possible en tout temps?\n\nMerci,\n\nMarie",
+  "date": "2026-09-10T14:22:00+00:00",
+  "provider_category": "primary"
+}

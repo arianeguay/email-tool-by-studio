@@ -1,0 +1,10 @@
+name: drafts-post
+version: 1
+
+schema:
+  required_fields:
+    - run_id
+    - pending
+    - drafted
+    - failed
+    - journal_path

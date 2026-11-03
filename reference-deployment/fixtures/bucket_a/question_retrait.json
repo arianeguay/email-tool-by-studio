@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_question_retrait_001",
+  "thread_id": "thread_ref_question_retrait_001",
+  "from_address": "s.belanger.qc@example.com",
+  "subject": "Retrait en cours de mois",
+  "headers": {},
+  "body_snippet": "Bonjour,\n\nOn doit malheureusement arrêter les cours de piano de notre fils tout de suite, on déménage à la fin du mois. Est-ce qu'on va être remboursés pour les cours qu'il n'aura pas eus ce mois-ci?\n\nSophie",
+  "date": "2026-09-15T11:40:00+00:00",
+  "provider_category": "primary"
+}

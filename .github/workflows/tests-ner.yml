@@ -1,0 +1,175 @@
+# The `ner` extra costs ~7 minutes a run -- torch takes ~2 minutes to install, the
+# tests themselves ~4 -- against ~45 seconds for the whole rest of the suite. It is
+# a separate workflow so it can be triggered on its own terms rather than on every
+# push.
+#
+# What it uniquely proves is a *detected span*: the tests that assert on a name
+# GLiNER found. The logic around them already runs in `tests.yml` --
+# those files are collected there too, with only the person-detection cases skipped.
+# So the trigger is not "did this touch the tokenizer's callers" but "could this move
+# a span".
+#
+# The path list is written out twice because GitHub Actions does not support YAML
+# anchors; the two copies must stay identical.
+name: tests (ner)
+
+on:
+  pull_request:
+    paths:
+      # The tokenizer and the detector it asks.
+      - "email_classifier/anonymize.py"
+      - "email_classifier/detector.py"
+      # The vouching consumers: both decide what stays a name and what is club
+      # vocabulary, against the same word list.
+      - "email_classifier/precedents.py"
+      - "email_classifier/club_memory.py"
+      # `anonymize_escalation` -- the one statement of what a scope tokenizes
+      # before stage 2 (STU-1009).
+      - "email_classifier/orchestrate/batch.py"
+      # The version bounds. Tokenization is upstream of every span GLiNER returns,
+      # so a `transformers` minor bump can move recall on its own (STU-919) -- which
+      # is why the bounds are pinned, and why touching them has to re-measure.
+      - "pyproject.toml"
+      # The tests that carry the assertions, and this file.
+      - "tests/test_anonymize.py"
+      - "tests/test_eval_spans.py"
+      - "tests/test_precedents.py"
+      - "tests/test_club_memory.py"
+      - "tests/test_batch.py"
+      - "tests/test_drafts.py"
+      - "tests/test_outlook_projection.py"
+      - "tests/test_observe_spans.py"
+      - "tests/conftest.py"
+      - ".github/workflows/tests-ner.yml"
+
+  push:
+    branches: [main]
+    paths:
+      # The tokenizer and the detector it asks.
+      - "email_classifier/anonymize.py"
+      - "email_classifier/detector.py"
+      # The vouching consumers: both decide what stays a name and what is club
+      # vocabulary, against the same word list.
+      - "email_classifier/precedents.py"
+      - "email_classifier/club_memory.py"
+      # `anonymize_escalation` -- the one statement of what a scope tokenizes
+      # before stage 2 (STU-1009).
+      - "email_classifier/orchestrate/batch.py"
+      # The version bounds. Tokenization is upstream of every span GLiNER returns,
+      # so a `transformers` minor bump can move recall on its own (STU-919) -- which
+      # is why the bounds are pinned, and why touching them has to re-measure.
+      - "pyproject.toml"
+      # The tests that carry the assertions, and this file.
+      - "tests/test_anonymize.py"
+      - "tests/test_eval_spans.py"
+      - "tests/test_precedents.py"
+      - "tests/test_club_memory.py"
+      - "tests/test_batch.py"
+      - "tests/test_drafts.py"
+      - "tests/test_outlook_projection.py"
+      - "tests/test_observe_spans.py"
+      - "tests/conftest.py"
+      - ".github/workflows/tests-ner.yml"
+
+  # The backstop no path filter can be: STU-919 is drift with *nothing in the repo
+  # changing*, so the weekly run is the only thing that catches a bound that moved
+  # under us. Without it, a filtered job would find that drift on the first PR that
+  # happens to touch the tokenizer -- or on the first run that sends real mail.
+  schedule:
+    - cron: "0 6 * * 1"
+
+  # And the manual handle, for a change that moves a span from somewhere this list
+  # does not name.
+  workflow_dispatch:
+
+concurrency:
+  # Keyed on the commit for a push, on the ref for a PR. `github.ref` alone is
+  # `refs/heads/main` for every merge, so with cancel-in-progress each merge killed
+  # the previous one's run: on 2026-08-28 three merges landed in eight minutes and
+  # two of them (#231, #233) went onto main with their CI cancelled rather than
+  # finished. A superseded PR run is genuinely waste; a superseded main run is the
+  # only verification that commit will ever get.
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ner:
+    runs-on: ubuntu-latest
+    # A hung detector or a wedged socket would otherwise sit on the runner for the
+    # 6h default. The job's own worst case is ~7 minutes.
+    timeout-minutes: 25
+    env:
+      # Measured, not assumed (STU-1079, STU-2031). The runner prints itself on
+      # every run. Per worker, measured locally over the full suite, GPU declined:
+      #
+      #     workers   peak summed RSS   wall
+      #     1          2192 MiB         119 s
+      #     2          2899 MiB          84 s
+      #     3          4189 MiB          85 s
+      #
+      # A third worker costs ~1290 MiB and returns one second, and 3 on a 2-core
+      # 8 GB hosted runner gave the intermittent exit 143 of PR #287. So 2.
+      NER_WORKERS: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python venv
+        # The runner's python3, not setup-python: its 3.11 finds libpython only through
+        # LD_LIBRARY_PATH, which tests spawning an interpreter in a scrubbed env drop.
+        run: |
+          python3 -m venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Install
+        # torch first, and from the CPU index -- not a redundant second `pip
+        # install`. The default index resolves the CUDA build, which on run
+        # 33276876215 pulled ~2.19 GB of `nvidia_*` and `triton` wheels onto a
+        # runner with no GPU: 99 s of a ~7 minute job on a hosted runner. Installed
+        # first, the extras find the dependency already satisfied.
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev,webhook,ner]" pytest-xdist
+
+      - name: Cache the GLiNER weights
+        # ~1.8 GB, and keyed on the pinned bounds: a bump is exactly when the weights
+        # must be re-pulled rather than read from a cache the old bound filled.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('pyproject.toml') }}
+
+      - name: Test
+        # A runner that runs out of memory does not fail this job -- it takes the
+        # runner down with it (STU-1079). The step ends mid-line at exit 143 and
+        # GitHub reports the job *cancelled*, and `if: always()` does not run on a
+        # cancelled job, so nothing placed after this step can report anything at
+        # all. Measured on this branch: a summary step never printed.
+        #
+        # So the memory has to reach the log while the run is still alive. The
+        # header line is printed before pytest starts -- it is the one line that
+        # survives any kill -- and the sampler interleaves with the progress dots,
+        # which is what turns "cut mid-line" into "cut mid-line, with 180 MiB left".
+        run: |
+          echo "runner: $(nproc) cores, $(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo) MiB total, $NER_WORKERS workers"
+          ( while sleep 5; do
+              echo "mem: $(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo) MiB available"
+            done ) &
+          sampler=$!
+          trap 'kill "$sampler" 2>/dev/null || true' EXIT
+          python -m pytest -q -n "$NER_WORKERS"
+
+      - name: Record what the detector actually loaded
+        # `provenance.detector_stack` names the versions a run resolved to; printing
+        # them here is what makes a drift inside the bounds readable after the fact.
+        if: always()
+        run: |
+          python - <<'EOF'
+          import importlib.metadata as md
+          for name in ("gliner", "transformers", "torch"):
+              try:
+                  print(f"{name}=={md.version(name)}")
+              except md.PackageNotFoundError:
+                  print(f"{name}: not installed")
+          EOF

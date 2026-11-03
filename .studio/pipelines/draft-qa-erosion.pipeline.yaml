@@ -1,0 +1,55 @@
+name: draft-qa-erosion
+description: Judge the same draft again at each group iteration — does the gate erode?
+version: 1
+
+# The measurement of STU-1104, and what STU-1160 turned it into.
+#
+# It was built to ask whether the gate erodes across the group's passes: the echo
+# stage re-emits the *same* recorded draft, so the only thing moving between
+# iterations was the reviewer's own last critique in `group_feedback`, and a flip
+# had one thing to attribute itself to. STU-1148 measured 5 flips in 24 replays, all
+# at K=1, and four of them were one shape — the reviewer writing the corrected reply
+# inside its own critique and approving that, while the served body was byte-identical
+# to the one it had just rejected.
+#
+# STU-1160 removed `group_feedback` from the reviewer in `email-draft`, so it is
+# removed here too: the parity test holds this group to the production one, and a
+# K axis production does not have would be a measurement of something else.
+#
+# That closes the channel this harness existed to measure, and the honest consequence
+# is that it no longer measures erosion — nothing moves between the passes now. What
+# it measures instead is the noise floor: the same reviewer, the same body, three
+# times. That is the control STU-1148 already relied on (at K=0 the verdict was
+# `rejected` 24 of 24), promoted to being the whole reading. A flip here is now a
+# statement about the model's own variance, not about feedback, and the mean-K figure
+# means nothing it did not already mean.
+#
+# Keeping the old wiring to keep the old question answerable was the alternative and
+# is the wrong trade: it would hold a corruption channel open in the harness that is
+# supposed to mirror production, so the harness would stop mirroring it the moment
+# the fix landed.
+stages:
+  - group: qa-erosion
+    max_iterations: 3
+    stages:
+      - name: replay-draft
+        kind: drafting
+        executor: script
+        runtime: python
+        script: scripts/qa_replay_draft.py
+        contract: qa-replay-draft
+        timeout_ms: 60000
+        context:
+          include:
+            - input
+
+      - name: draft-qa
+        kind: qa
+        agent: draft-reviewer
+        contract: draft-qa
+        ralph:
+          max_attempts: 2
+        context:
+          include:
+            - input
+            - previous_stage_output

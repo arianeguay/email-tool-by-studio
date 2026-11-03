@@ -1,0 +1,16 @@
+name: draft-coverage
+version: 1
+
+schema:
+  required_fields:
+    - requests
+    - verdict
+
+# No `post_validation`. `incomplete` is a finding a human reads, not a stage the engine
+# should end as `rejected`: nothing restarts on it, there is no group here, and the
+# harness reads the verdict off the stage either way (STU-1140).
+#
+# `requests` and `verdict` are redundant by construction — the verdict is `incomplete`
+# exactly when an entry is unaddressed. Kept redundant on purpose: the caller checks the
+# two against each other and records `error` when they disagree, rather than picking the
+# one it prefers from an output the model did not think through.

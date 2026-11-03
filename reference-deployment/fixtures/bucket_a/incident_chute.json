@@ -1,0 +1,10 @@
+{
+  "message_id": "msg_ref_incident_chute_001",
+  "thread_id": "thread_ref_incident_chute_001",
+  "from_address": "p.roy.musique@example.com",
+  "subject": "Petite chute pendant la répétition du spectacle",
+  "headers": {},
+  "body_snippet": "Bonjour,\n\nMon fils Émile est tombé pendant la répétition d'hier soir en descendant de l'estrade. Rien de grave, une bosse sur le genou, mais je voulais vous le signaler. Est-ce qu'il y a un suivi à faire de votre côté?\n\nPatrick",
+  "date": "2026-09-14T20:10:00+00:00",
+  "provider_category": "primary"
+}

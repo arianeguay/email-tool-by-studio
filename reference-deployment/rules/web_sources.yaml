@@ -1,0 +1,16 @@
+# Pages the drafting agent may read, and the whole allow-list (STU-1459, mirroring the
+# kernel's own ../../rules/web_sources.yaml). A URL not written here is refused, not
+# fetched.
+#
+# One real, stable, publicly reachable page — deliberately not a page belonging to any
+# fictional "Cantabile" domain, since no such site exists. Reusing a real page proves
+# `org_web-search_site`/`websearch.py` genuinely fetch and extract live HTML rather than
+# reading a fixture; the drafter never claims a fact from it in the reference deployment's
+# own skill (see org-facts.skill.md), so this deployment's `org_web-search_site` calls
+# exercise the tool without needing the page to say anything about Cantabile.
+#
+# No entry declares `extractor:` (STU-1471): plain block extraction is the generic path,
+# and a custom extractor function is kernel Python (`websearch._EXTRACTORS`) that this
+# deployment has no reason to add to.
+pages:
+  - https://fr.wikipedia.org/wiki/Solf%C3%A8ge

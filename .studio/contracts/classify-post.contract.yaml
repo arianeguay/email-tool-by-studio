@@ -1,0 +1,8 @@
+name: classify-post
+version: 1
+
+schema:
+  required_fields:
+    - run_id
+    - report_path
+    - totals

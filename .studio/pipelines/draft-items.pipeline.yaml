@@ -1,0 +1,19 @@
+name: draft-items
+description: Fan out `email-draft` over the emails that need a reply — one child run per email.
+version: 1
+
+# Same shape as `classify-escalations`: the item IS the resume key, so what busts
+# the cache is what `drafts-pre` puts in it — the email fields plus
+# `prompt_fingerprint` (both agents, the club skill, the contracts, the tool,
+# the invariants, the anonymization scope). Nothing run-scoped is in there, so an
+# unchanged mailbox replays for free and the drafts already in it stand.
+#
+# Lower concurrency than the classify fan-out: every item writes to the same
+# mailbox through Graph, and a draft is a mutation, not a read.
+stages:
+  - map: drafts
+    over: input.emails
+    pipeline: email-draft
+    resume: true
+    concurrency: 2
+    on_item_failure: collect-all

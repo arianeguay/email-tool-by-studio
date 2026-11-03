@@ -1,0 +1,15 @@
+name: fetch
+description: Fetch the mailbox into a provider-neutral JSON dump — read-only.
+version: 1
+
+stages:
+  - name: fetch
+    kind: fetch
+    executor: script
+    runtime: python
+    script: scripts/fetch_mailbox.py
+    contract: fetch
+    timeout_ms: 300000
+    context:
+      include:
+        - input

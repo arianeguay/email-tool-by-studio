@@ -1,0 +1,15 @@
+name: drafts-pre
+version: 1
+
+schema:
+  required_fields:
+    - run_id
+    - needs_draft
+    # What the report handed the stage, before the conversation-state skips —
+    # `drafts-post` closes the stage's record with it (STU-917).
+    - needs_reply
+    - pending
+    # Which provider the drafting calls resolve to, recorded on the leg by
+    # `drafts-post` for the audit's cache check (STU-1145).
+    - provider
+    - paths

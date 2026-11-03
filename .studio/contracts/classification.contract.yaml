@@ -1,0 +1,23 @@
+name: classification
+version: 1
+
+# required_fields is a cheap presence gate (all Studio enforces declaratively).
+schema:
+  required_fields:
+    - thread_id
+    - bucket
+    - subtype
+    - confidence
+    - suggested_action
+    - suggested_label
+    - reasoning
+
+# The real binary contract (enums + types + action↔bucket table, INV-08) runs against
+# the actual output via the external validator. The engine pipes the output JSON to the
+# command's stdin and expects {valid, errors}; non-zero exit drives a RALPH retry.
+validators:
+  - name: classification
+    # Same interpreter resolution as every tool plugin: a host where `python` is
+    # only `python3` runs the validator not at all, and the retry it drives reads
+    # like the model failing the contract (STU-1008).
+    command: "${PYTHON:-.venv/bin/python} -m email_classifier.stage2.validate_cli"

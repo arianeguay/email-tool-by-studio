@@ -1,0 +1,31 @@
+# Deployment policy — Cantabile reference deployment (STU-1459).
+#
+# A template someone copies to start their own deployment, mirroring the kernel's first
+# deployment's policy (../../rules/policy.yaml) in shape and differing in content — nothing here
+# is read by the kernel unless a rule/contract/harness names this file explicitly.
+
+deterministic_can_finalize: true
+destructive_actions_allowed:
+  - mark_for_delete
+frontier_log:
+  file: true
+  stdout: false
+email:
+  provider: outlook  # gmail | outlook. This deployment has no real mailbox: the
+                      # value is never read by anything in this tree, since every
+                      # harness that exercises it works from committed fixtures/corpora,
+                      # never a live fetch. Set for shape-completeness, matching the
+                      # kernel's own deployment.
+start_date: today
+timezone: America/Toronto
+language: fr_ca
+# The skill whose published names the anonymizer never redacts (STU-1995): the
+# organization's own programs, places and platforms. Unset, nothing beyond the lang
+# pack is vouched.
+vouched_skill: org-facts
+auto_apply: false
+anonymization:
+  # `full`, matching the kernel's own deployment: a music school's inbox carries minor
+  # students' and parents' PII too, and this is also what exercises the fr_ca lang
+  # pack's person-detection path for real rather than trivially.
+  scope: full

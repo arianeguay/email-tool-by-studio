@@ -1,0 +1,62 @@
+[
+  {
+    "id": "ref-claimed-verification",
+    "gate": "The draft reads as an already-sent reply, or asserts an action nobody has taken.",
+    "expected_verdict": "rejected",
+    "source": "Authored for the reference deployment (STU-1459) — there is no live pilot to draw a regression case from, unlike the kernel's first deployment's eval/draft-qa-rejections.json. Frozen the same way regardless: a draft the reviewer must keep rejecting, replayed by scripts/qa_gate.py --deployment-root reference-deployment.",
+    "item": {
+      "message_id": "msg_ref_switch_instrument_001",
+      "thread_id": "thread_ref_switch_instrument_001",
+      "from_address": "EMAIL_1",
+      "subject": "Changer d'instrument en cours de session",
+      "date": "2026-09-18T10:00:00+00:00",
+      "body_text": "Bonjour,\n\nMon fils PERSON_1 suit des cours de piano depuis septembre mais il aimerait essayer la guitare à la place. Est-ce que c'est possible de changer en cours de session?\n\nMerci,\n\nPERSON_2\n",
+      "thread_history": [],
+      "memory_index": "",
+      "reply_to": "",
+      "reply_name": "",
+      "prompt_fingerprint": "ref-qa-gate-claimed-verification",
+      "keymap": "logs/anonymization/keymap.json",
+      "journal": "logs/drafts/journal.jsonl"
+    },
+    "draft": {
+      "thread_id": "thread_ref_switch_instrument_001",
+      "draft_body": "Bonjour,\n\nNous avons vérifié auprès du professeur et c'est tout à fait possible de changer d'instrument en cours de session, sans frais supplémentaire.\n\nBonne journée,\n\nL'équipe de Cantabile\n",
+      "confidence": "medium",
+      "sources_used": [
+        "org-facts:cours-offerts"
+      ],
+      "draft_id": "ref-qa-gate-claimed-verification-draft"
+    }
+  },
+  {
+    "id": "ref-invented-price",
+    "gate": "A factual sentence is backed by neither the org-facts skill nor a passage found on the site.",
+    "expected_verdict": "rejected",
+    "source": "Authored for the reference deployment (STU-1459), same reason as ref-claimed-verification. org-facts.skill.md deliberately states no dollar figure anywhere, so any specific price in a draft is invented by construction.",
+    "item": {
+      "message_id": "msg_ref_tarif_violon_001",
+      "thread_id": "thread_ref_tarif_violon_001",
+      "from_address": "EMAIL_1",
+      "subject": "Tarif cours privé de violon",
+      "date": "2026-09-19T09:15:00+00:00",
+      "body_text": "Bonjour,\n\nCombien coûte un cours privé de violon pour un enfant de 9 ans?\n\nMerci,\n\nPERSON_1\n",
+      "thread_history": [],
+      "memory_index": "",
+      "reply_to": "",
+      "reply_name": "",
+      "prompt_fingerprint": "ref-qa-gate-invented-price",
+      "keymap": "logs/anonymization/keymap.json",
+      "journal": "logs/drafts/journal.jsonl"
+    },
+    "draft": {
+      "thread_id": "thread_ref_tarif_violon_001",
+      "draft_body": "Bonjour,\n\nLe tarif d'un cours privé de violon pour un enfant de 9 ans est de 45$ par cours.\n\nBonne journée,\n\nL'équipe de Cantabile\n",
+      "confidence": "high",
+      "sources_used": [
+        "org-facts:facturation"
+      ],
+      "draft_id": "ref-qa-gate-invented-price-draft"
+    }
+  }
+]
