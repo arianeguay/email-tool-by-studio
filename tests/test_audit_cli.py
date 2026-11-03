@@ -1263,6 +1263,39 @@ def test_reviewed_pairs_only_drafts_the_journal_saw_written(monkeypatch, tmp_pat
                                                for r in out["rows"]]
 
 
+def test_reviewed_reads_facts_only_when_asked(monkeypatch, tmp_path, capsys):
+    """`reviewed` stays offline by default; `--facts` adds the reading beside the
+    lexical bands, which stay as they were."""
+    from email_classifier import fact_read, providers
+
+    mailbox = _Mailbox()
+    monkeypatch.setattr(providers, "get_thread_reader", lambda provider: mailbox)
+    monkeypatch.setattr(providers, "get_drafter", lambda provider: mailbox)
+    asked = []
+
+    def read(thread_id, draft_body, sent_body, cwd, provider=None):
+        asked.append(thread_id)
+        return {"verdict": "contradicted", "contradicted": ["can still register"]}
+
+    monkeypatch.setattr(fact_read, "read", read)
+    extra = ["--studio-log", str(_two_draft_journal(tmp_path)),
+             "--draft-journal", str(_draft_journal(tmp_path, "T1", "T2"))]
+
+    _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(), extra=extra)
+    offline = json.loads(capsys.readouterr().out)
+    assert asked == [] and "by_facts" not in offline
+
+    _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),
+         extra=[*extra, "--facts"])
+    out = json.loads(capsys.readouterr().out)
+    # T2 has no sent reply, so nothing to read it against.
+    assert asked == ["T1"]
+    assert out["by_facts"]["contradicted"] == 1
+    assert out["by_outcome"] == offline["by_outcome"]
+    assert [r.get("facts") for r in out["rows"] if r["thread_id"] == "T1"] == [
+        {"verdict": "contradicted", "contradicted": ["can still register"]}]
+
+
 def test_reviewed_refuses_without_the_drafts_journal(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as exc:
         _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),

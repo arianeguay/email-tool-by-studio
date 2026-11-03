@@ -795,6 +795,10 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     sent_with_placeholder = flag_sent(sent_bodies)
     unjoined = sum(1 for r in rows if r["similarity"] is None)
     summary = draft_delta.summarise(rows, list(drafted.values()), list(sent_bodies.values()))
+    if args.facts:
+        from email_classifier import fact_read
+        # Lexical bands stay in `by_outcome`; this is the reading an audit quotes.
+        summary["by_facts"] = fact_read.annotate(rows, drafted, sent_bodies, Path.cwd())
     rows += [{"thread_id": t, "outcome": UNMATCHED_ITEM} for t in sorted(unmatched)]
     rows += [{"thread_id": t, "outcome": NO_WRITE_TIME} for t in sorted(untimed)]
 
@@ -935,6 +939,9 @@ def main() -> int:
                         help="the run to read: one to mark not worth auditing (skip), "
                              "or whose drafting to report (drafts)")
     parser.add_argument("--reason", default=None, help="why that run does not earn an audit")
+    parser.add_argument("--facts", action="store_true",
+                        help="reviewed: ask the draft-facts reader whether each sent reply "
+                             "kept, extended or contradicted the draft (live LLM calls)")
     args = parser.parse_args()
 
     # `--run` is top-level and only two subcommands read it, so anywhere else it was

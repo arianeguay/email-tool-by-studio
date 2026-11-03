@@ -47,6 +47,9 @@ def parse_args(argv=None):
     parser.add_argument("--offline", action="store_true",
                         help="Place the rounds and stop, without calling Graph. Answers "
                              "'is there enough carrying traffic yet' for free.")
+    parser.add_argument("--facts", action="store_true",
+                        help="Also ask the draft-facts reader whether each sent reply kept, "
+                             "extended or contradicted the draft (live LLM calls).")
     parser.add_argument("-o", "--out", type=Path)
     return parser.parse_args(argv)
 
@@ -124,8 +127,12 @@ def main(argv=None) -> int:
                 continue
             sent_bodies = {t: r["body"] for t, r in replies.items() if t in bodies}
             rows = draft_delta.compare(bodies, sent_bodies, still)
-            tables[name] = {**draft_delta.summarise(
-                rows, list(bodies.values()), list(sent_bodies.values())), "rows": rows}
+            table = draft_delta.summarise(rows, list(bodies.values()),
+                                          list(sent_bodies.values()))
+            if args.facts:
+                from email_classifier import fact_read
+                table["by_facts"] = fact_read.annotate(rows, bodies, sent_bodies, REPO_ROOT)
+            tables[name] = {**table, "rows": rows}
         result["tables"] = tables
 
     carrying = len(by_cohort[pilot_delta.CARRYING])
