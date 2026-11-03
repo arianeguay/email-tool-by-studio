@@ -140,3 +140,19 @@ def test_dictionaries_key_matches_the_hardcoded_hunspell_default_today():
     assert config["dictionaries"] == [
         "/usr/share/hunspell/fr_CA.dic", "/usr/share/hunspell/en_CA.dic",
     ]
+
+
+@pytest.mark.parametrize("attribution", [
+    "Le lun. 2 nov., Ariane a écrit :",
+    "Le jeu. 5 mars 2026, à 9 h 05, Déménagements Exemple <info@example.com> a\nécrit :",
+    "On Mon, Nov 2 Marc wrote:",
+    "On Mon, Nov 2, 2026 at 10:00 AM Marc Tremblay <marc@example.com>\nwrote:",
+])
+def test_quote_markers_cut_at_the_attribution_whether_or_not_it_wraps(attribution):
+    reply = "Parfait, merci.\n\n"
+    body = f"{reply}{attribution}\n> Bonjour"
+    markers = lang.compiled_quote_markers(load_lang_config("fr_ca"))
+
+    cut = min(m.start() for m in (p.search(body) for p in markers) if m)
+
+    assert cut == len(reply)
