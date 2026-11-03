@@ -22,7 +22,7 @@ from pathlib import Path
 KERNEL_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(KERNEL_ROOT))
 
-from email_classifier import draft_delta, draft_pairing, pilot_delta  # noqa: E402
+from email_classifier import draft_delta, pilot_delta  # noqa: E402
 from email_classifier.apply.journal import read_entries  # noqa: E402
 from email_classifier.pilot_gate import write_record  # noqa: E402
 from email_classifier import deployment  # noqa: E402
@@ -107,10 +107,7 @@ def main(argv=None) -> int:
                   "record of when each draft was written", file=sys.stderr)
             return 2
         entries = read_entries(args.draft_journal)
-        by_run = {rnd.run_id: draft_pairing.write_times(entries, rnd.run_id)
-                  for rnd, _ in latest.values()}
-        written = {t: by_run[rnd.run_id][t] for t, (rnd, _) in latest.items()
-                   if t in by_run[rnd.run_id]}
+        written = pilot_delta.written_at(latest, entries)
         replies = reader.sent_replies(dict(sorted(written.items())))
         # Same rule as `audit_run.py reviewed`: no write time, no pairing and no score.
         result["no_write_time"] = sorted(set(latest) - set(written))

@@ -234,6 +234,15 @@ def test_the_web_cache_expires_on_age_alone(tmp_path):
     assert verdicts[f"dumps/web-cache/{fresh.name}"] == (False, "fresh")
 
 
+def test_a_candidates_file_expires_with_the_reports(tmp_path):
+    """It holds redacted pairs from mail, so it is held no longer than the reports."""
+    stale = write(tmp_path / "logs/corrections/20260801T000000Z.json", days_old=31)
+    fresh = write(tmp_path / "logs/corrections/20261101T000000Z.json", days_old=2)
+    verdicts = decide(tmp_path)
+    assert verdicts[f"logs/corrections/{stale.name}"] == (True, "expired")
+    assert verdicts[f"logs/corrections/{fresh.name}"] == (False, "fresh")
+
+
 def test_run_id_is_read_off_the_filename_or_not_at_all():
     assert run_id_of(f"{AUDITED}.json") == AUDITED
     assert run_id_of(f"{AUDITED}.plan.jsonl") == AUDITED

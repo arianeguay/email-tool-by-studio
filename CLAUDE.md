@@ -86,6 +86,7 @@ make draft-bakeoff JOURNAL=.studio/runs/<run>.jsonl  # two drafter models, one c
 make eval-claims   # does the same code still claim the same spans? needs the detector (STU-1054)
 make pilot-gate    # a deployment's exit conditions, read off the artifacts (STU-1242)
 make pilot-gate OFFLINE=1  # the same, without a Graph call: is there a denominator
+make correction-rules  # candidate drafting rules from the reviewer's corrections (STU-1108)
 make memory-harvest SINCE=<YYYY-MM-DD>  # pasted answer blocks proposed as club-memory facts (STU-2001)
 make memory-harvest-approve  # writes the candidates marked approve: true into club-memory/
 make prune         # purge plan for run artifacts, nothing is deleted (STU-932)
@@ -2775,6 +2776,26 @@ Consequences, each one tested:
   rather than 0 (a thin denominator that does not announce itself reads as a whole one).
   `--offline` places rounds without calling Graph, which answers "is there enough
   carrying traffic" for free.
+- `email_classifier/correction_rules.py` + `scripts/correction_rules.py`: candidate
+  drafting rules read off the reviewer's corrections (STU-1108). A precedent search
+  already carries every sent reply forward as phrasing; what it cannot show is what was
+  wrong with ours, since the send overwrites the draft. `make correction-rules` takes
+  `pilot_delta`'s window (latest drafting round per conversation, `written_at`, the
+  reader's `sent_replies`), drops replies sent unchanged, and hands every remaining pair
+  to `draft-corrections` in one item: a rule is a pattern across pairs, and a reader that
+  saw one pair at a time could not count support. The output is a file under
+  `logs/corrections/` for a human to accept into a skill or reject, never a prompt edit
+  and never a few-shot example, so one reviewer's habits do not become the drafter's.
+  A candidate needs **two** distinct conversations: one pair cannot tell a drafter
+  defect from reviewer noise (a fact only the reviewer had, a reply moved to another
+  channel), and a higher bar would keep the list empty at a pilot's dozen corrections a
+  round. A rule cited by one pair is listed under `single_pair`, not dropped; a cited id
+  the input never carried does not count; and every pair must be either cited or
+  `unexplained`, never both or neither, or the reading is `incoherent`. Both bodies go
+  through `precedents.redact` before the reader sees them, which is also what the file
+  keeps: read, never restored, so index-free placeholders. The shelf is age alone, 30
+  days. Not `learn/`: that store promotes classification verdicts into rules a machine
+  applies, and here the rule is prose a person writes.
 - `email_classifier/pilot_gate.py` + `scripts/pilot_gate.py`: a deployment's three exit
   conditions, read from artifacts rather than from an impression (STU-1242): a week of
   unattended live rounds, no PII leak, and an accepted-draft ratio the audit records. The
