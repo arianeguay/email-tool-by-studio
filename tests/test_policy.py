@@ -219,3 +219,24 @@ def test_load_policy_rejects_envelope_rewriters_that_are_not_module_names(
     policy_file.write_text(f"deterministic_can_finalize: true\nenvelope_rewriters: {value}\n")
     with pytest.raises(ValueError, match="envelope_rewriters must list module names"):
         load_policy(policy_file)
+
+
+def test_auto_unsubscribe_is_off_by_default_and_read_for_imap(tmp_path: Path):
+    policy_file = tmp_path / "policy.yaml"
+    policy_file.write_text("deterministic_can_finalize: true\n")
+    assert load_policy(policy_file).auto_unsubscribe is False
+    policy_file.write_text(
+        "deterministic_can_finalize: true\nemail:\n  provider: imap\nauto_unsubscribe: true\n"
+    )
+    assert load_policy(policy_file).auto_unsubscribe is True
+
+
+@pytest.mark.parametrize("body, error", [
+    ("email:\n  provider: imap\nauto_unsubscribe: 'true'\n", "must be true or false"),
+    ("email:\n  provider: outlook\nauto_unsubscribe: true\n", "needs email.provider imap"),
+])
+def test_load_policy_rejects_an_unusable_auto_unsubscribe(tmp_path: Path, body: str, error: str):
+    policy_file = tmp_path / "policy.yaml"
+    policy_file.write_text(f"deterministic_can_finalize: true\n{body}")
+    with pytest.raises(ValueError, match=error):
+        load_policy(policy_file)
