@@ -977,6 +977,20 @@ def test_call_floor_exits_3_when_the_classify_leg_reports_more_than_the_journal(
     assert "classify: reported_calls 5" in result.stderr
 
 
+def test_call_floor_does_not_measure_a_push_classify_leg_against_its_drafting_journal(
+        tmp_path):
+    # STU-2059, run 03ddd0e1 on apollon: each push escalation is its own `studio run
+    # classify`, whose journal names no run of ours, so the only journal found is the
+    # drafting one. It holds no classify stage, and reading that as 0 calls exited 3.
+    result, payload = _floor(tmp_path, _drafting(), calls=2, classify=_spend(calls=1))
+    classify = _leg(payload, "classify")
+    assert result.returncode == 0
+    assert (classify["reported_calls"], classify["journal_calls"]) == (1, None)
+    assert classify["undercount"] is None
+    assert "classify: unmeasured" in result.stderr
+    assert _leg(payload, "drafts")["undercount"] == 0
+
+
 def test_call_floor_exits_2_when_no_journal_survives_the_run(tmp_path):
     # A floor with nothing to measure it against is not a floor known to be exact.
     reports, runs = _cost_tree(tmp_path, {"other.jsonl": _billed("r2")})
@@ -1155,3 +1169,50 @@ def test_an_unreadable_policy_says_so_rather_than_aborting(monkeypatch, tmp_path
     assert audit_run._assert_named_mailbox(_mailbox_report("staging@club.example")) == \
         "staging@club.example"
     assert "not cross-checked" in capsys.readouterr().err
+
+
+class _Mailbox:
+    """Graph stand-in for `reviewed`: one sent reply, no draft left in the folder."""
+
+    def __init__(self):
+        self.asked = []
+
+    def sent_replies(self, thread_ids):
+        self.asked.append(list(thread_ids))
+        return {"T1": {"body": "Bonjour, oui c'est bien samedi."}}
+
+    def find_draft(self, thread_id):
+        return None
+
+
+def test_reviewed_reports_an_unmatched_draft_as_a_row(monkeypatch, tmp_path, capsys):
+    """A write-draft output whose thread no drafts-pre item carries (STU-2061): the
+    drafter mis-copied the id on one attempt. The run is still read, and the draft is
+    a row rather than an OrphanDraft traceback."""
+    from email_classifier import providers
+
+    def complete(stage, output):
+        return json.dumps({"event": "stage_complete", "stage": stage, "output": output})
+
+    journal = tmp_path / "drafts.jsonl"
+    journal.write_text("\n".join([
+        json.dumps({"event": "pipeline_start", "run_id": "run-1"}),
+        complete("drafts-pre", {"pending": [{"thread_id": "T1"}]}),
+        complete("write-draft", {"thread_id": "T1", "draft_body": "Bonjour, oui."}),
+        complete("write-draft", {"thread_id": "TX", "draft_body": "Bonjour, oui samedi."}),
+        complete("write-draft", {"thread_id": "T1", "draft_body": "Bonjour, oui c'est samedi."}),
+    ]), encoding="utf-8")
+    mailbox = _Mailbox()
+    monkeypatch.setattr(providers, "get_thread_reader", lambda provider: mailbox)
+    monkeypatch.setattr(providers, "get_drafter", lambda provider: mailbox)
+
+    code = _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),
+                extra=["--studio-log", str(journal)])
+
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert out["unmatched_items"] == 1
+    assert out["conversations"] == 1
+    assert [(r["thread_id"], r["outcome"]) for r in out["rows"]][-1] == \
+        ("TX", audit_run.UNMATCHED_ITEM)
+    assert mailbox.asked == [["T1"]]

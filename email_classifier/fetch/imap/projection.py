@@ -21,14 +21,11 @@ from email_classifier import lang
 from email_classifier.fetch.headers import allowlisted
 
 _ID = re.compile(r"<([^<>]+)>")
-# Gmail wraps a long attribution line, "Le <date>, <name> <address> a" / "écrit :",
-# which the lang pack's one-line markers miss (measured on Migadu's Sent, 2026-11-03).
-_WRAPPED_ATTRIBUTION = re.compile(r"^(?:Le|On) [^\n]{0,160}\n[^\n]{0,40}(?:écrit|wrote)\s*:", re.M)
 
 
 @functools.cache
 def _quote_markers() -> tuple[re.Pattern, ...]:
-    return (*lang.compiled_quote_markers(lang.deployment_config()), _WRAPPED_ATTRIBUTION)
+    return lang.compiled_quote_markers(lang.deployment_config())
 
 
 def parse(raw: bytes) -> EmailMessage:

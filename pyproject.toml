@@ -38,10 +38,15 @@ fetch = [
 # `scope: full` — between two runs with nothing in the repo changing (STU-919). The
 # versions a run actually loaded land in `provenance.detector_stack`.
 # `make eval-spans` is what fails when a widened bound moves a span (STU-925).
+# sentencepiece and protobuf are what the mdeberta tokenizer loads with: transformers
+# does not require them, and without them a fresh venv fails on a `tiktoken` error
+# (STU-2058).
 ner = [
     "gliner>=0.2.27,<0.3",
     "transformers>=5.13,<5.14",
     "torch>=2.13,<2.14",
+    "sentencepiece>=0.2.2,<0.3",
+    "protobuf>=7.36,<7.37",
 ]
 fetch-outlook = [
     "msal>=1.28",

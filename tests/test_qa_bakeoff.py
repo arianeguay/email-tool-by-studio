@@ -77,6 +77,13 @@ def test_a_draft_with_no_item_is_refused():
         drafts_from_journal([_pre("A"), _draft("ORPHAN")])
 
 
+def test_a_lenient_read_keeps_an_unmatched_draft_without_its_item():
+    """`reviewed` needs the body, not the item (STU-2061)."""
+    drafts = drafts_from_journal([_pre("A"), _draft("A"), _draft("ORPHAN")], strict=False)
+
+    assert [(d.key, d.item is None) for d in drafts] == [("A#1", False), ("ORPHAN#1", True)]
+
+
 def test_agreement_on_identical_verdicts():
     result = compare(
         {"A#1": "approved", "B#1": "rejected"},

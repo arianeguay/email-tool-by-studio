@@ -1773,6 +1773,16 @@ Consequences, each one tested:
   the direction of STU-912. `scripts/audit_run.py drafts` therefore reads both files, one
   entry per execution and never folded (STU-1111): a resume re-selects from what is left,
   so summing the `needs_reply` would count the same conversations twice.
+- `email_classifier/placeholder.py`: the drafter's `[À COMPLÉTER : ...]` marker
+  (STU-2002) read outside the body (STU-2049). Drafts are plain text, so nothing in the
+  Drafts list told a draft that needs input from one that does not. `holds_placeholder`
+  is the one test: the Outlook drafter sets the category `ec/à-compléter` in the PATCH
+  that writes the body, and sends the whole set, so a rewrite without the marker clears
+  it (only an untouched draft of ours is ever rewritten, so no one else's category is
+  lost). `audit_run.py reviewed` runs `flag_sent` on the Sent Items bodies it already
+  reads and alerts when a reply went out with the marker. Gmail and IMAP do not mark:
+  an IMAP keyword is an ASCII atom, so `ec/à-compléter` cannot be one, and a second
+  ASCII spelling of the same marker is a vocabulary nobody reads there yet.
 - `email_classifier/mail_link.py`: an Outlook web link to the id it names. Outlook
   writes a `conversationId` in the URL when the pane shows a thread and a message id when
   it shows a single message, in the same form, so the mailbox decides

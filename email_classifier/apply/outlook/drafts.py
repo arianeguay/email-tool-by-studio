@@ -18,6 +18,8 @@ No msal/requests imports: the session is injected, so tests run against a fake
 without the optional `[fetch-outlook]` deps installed.
 """
 
+from email_classifier.placeholder import PLACEHOLDER_CATEGORY, holds_placeholder
+
 _DRAFTS_FOLDER = "/me/mailFolders/drafts/messages"
 _DRAFT_FIELDS = "id,isDraft,lastModifiedDateTime,sentDateTime"
 
@@ -44,7 +46,13 @@ class OutlookDrafter:
         """
         existing = self.find_draft(thread_id)
         draft_id = existing or self._create_reply(message_id)
-        payload: dict = {"body": {"contentType": "Text", "content": body}}
+        # The whole category set, not an added one: only an untouched draft of ours is
+        # rewritten, so the marker is the only category it can carry, and a rewrite
+        # without a placeholder must clear it (STU-2049).
+        payload: dict = {
+            "body": {"contentType": "Text", "content": body},
+            "categories": [PLACEHOLDER_CATEGORY] if holds_placeholder(body) else [],
+        }
         if reply_to:
             recipient: dict = {"address": reply_to}
             if reply_name:

@@ -477,14 +477,18 @@ def _leg_floor(name: str, stages, reported: int | None, source: str,
                recorded: dict | None, logs, extra: dict) -> dict:
     """One leg's own count beside the attempts the journal recorded for its stages."""
     by_stage = _journal_calls(logs, stages)
-    made = sum(s["calls"] for s in by_stage.values())
+    # No stage of the leg in any journal is a journal of another leg, not a leg that
+    # made no call: a push run's classify children each wrote a journal that names no
+    # run of ours, so the only one found is its drafting journal (STU-2059).
+    made = sum(s["calls"] for s in by_stage.values()) if by_stage else None
     return {
         "leg": name,
         **extra,
         "reported_calls": reported,
         "reported_from": source,
         "journal_calls": made,
-        "undercount": made - reported if reported is not None else None,
+        "undercount": (made - reported
+                       if reported is not None and made is not None else None),
         # No unit for a leg nothing measured: the pre-STU-1210 sentence would read as a
         # fact about a leg that does not exist, now that an unmeasured row is printed
         # beside a measured one rather than being the whole payload.
@@ -578,14 +582,22 @@ def _call_floor(args, report_path: Path, report: dict) -> int:
                   "produces this as readily as a bad count — read `studio_logs` before "
                   "the leg.", file=sys.stderr)
         return 3
-    unmeasured = [row for row in rows if row["reported_calls"] is None]
+    def why(row):
+        if row["reported_calls"] is None:
+            return row["reported_from"]
+        return (f"unmeasured: no journal of {', '.join(str(p) for p in logs)} runs a "
+                f"{row['leg']} stage, so the {row['reported_calls']} call(s) the leg "
+                "claims have no ceiling here")
+
+    unmeasured = [row for row in rows
+                  if row["reported_calls"] is None or row["journal_calls"] is None]
     if len(unmeasured) == len(rows):
         for row in unmeasured:
-            print(f"{row['leg']}: {row['reported_from']}", file=sys.stderr)
+            print(f"{row['leg']}: {why(row)}", file=sys.stderr)
         print("no leg is measured, which is not a gap of zero.", file=sys.stderr)
         return 2
     for row in unmeasured:
-        print(f"{row['leg']}: {row['reported_from']} — that leg is unmeasured, which is "
+        print(f"{row['leg']}: {why(row)} — that leg is unmeasured, which is "
               "not a gap of zero; the exit code answers for the leg(s) that were.",
               file=sys.stderr)
     return 0
@@ -703,6 +715,9 @@ def _own_legs(args, report: dict, run_id: str) -> dict[str, dict]:
     return legs
 
 
+UNMATCHED_ITEM = "unmatched item"
+
+
 def _reviewed(args, report_path: Path, report: dict) -> int:
     """What the reviewer did to each draft before sending it (STU-1100).
 
@@ -722,6 +737,7 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     finding, not something to explain away.
     """
     from email_classifier import draft_delta
+    from email_classifier.placeholder import flag_sent
     from email_classifier.providers import get_drafter, get_thread_reader
     from email_classifier.qa_bakeoff import drafts_from_journal
     from email_classifier.stage1.policy import load_policy
@@ -738,13 +754,21 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
                  "the draft left the mailbox when it was sent")
 
     latest: dict[str, tuple[int, str]] = {}
+    # A draft whose thread no drafts-pre item carries (STU-2061): the drafter echoes the
+    # thread id and can mis-copy it, so the id names no conversation Graph could join.
+    # It is still a draft the reviewer saw, so it is a row, not a traceback.
+    unmatched: set[str] = set()
     for path in logs:
-        for draft in drafts_from_journal(Path(path).read_text(encoding="utf-8").splitlines()):
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+        for draft in drafts_from_journal(lines, strict=False):
+            if draft.item is None:
+                unmatched.add(draft.thread_id)
+                continue
             body = draft.draft.get("draft_body") or ""
             if draft.thread_id not in latest or draft.attempt >= latest[draft.thread_id][0]:
                 latest[draft.thread_id] = (draft.attempt, body)
     drafted = {thread_id: body for thread_id, (_, body) in latest.items()}
-    if not drafted:
+    if not drafted and not unmatched:
         sys.exit(f"no generate-draft output in {', '.join(str(p) for p in logs)}")
 
     provider = load_policy(Path("rules/policy.yaml")).email_provider
@@ -757,6 +781,10 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     still = {t for t in drafted if drafter.find_draft(t)}
     sent_bodies = {t: r["body"] for t, r in replies.items()}
     rows = draft_delta.compare(drafted, sent_bodies, still)
+    sent_with_placeholder = flag_sent(sent_bodies)
+    unjoined = sum(1 for r in rows if r["similarity"] is None)
+    summary = draft_delta.summarise(rows, list(drafted.values()), list(sent_bodies.values()))
+    rows += [{"thread_id": t, "outcome": UNMATCHED_ITEM} for t in sorted(unmatched)]
 
     print(json.dumps({
         "report": str(report_path),
@@ -768,8 +796,11 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
         # Which store that key was resolved in, or null where the report predates the
         # field: an unjoined row means something different in each case.
         "mailbox": mailbox,
-        "unjoined": sum(1 for r in rows if r["similarity"] is None),
-        **draft_delta.summarise(rows, list(drafted.values()), list(sent_bodies.values())),
+        "unjoined": unjoined,
+        "unmatched_items": len(unmatched),
+        # A parent received the drafter's `[À COMPLÉTER` marker (STU-2049).
+        "sent_with_placeholder": sent_with_placeholder,
+        **summary,
         "rows": rows,
     }, indent=2, ensure_ascii=False))
     return 0

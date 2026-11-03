@@ -179,6 +179,8 @@
     "entraineurs",
     "entraîneur",
     "entraîneurs",
+    "équipe",
+    "équipes",
     "expéditeur",
     "expéditeurs",
     "head",
@@ -300,6 +302,18 @@
     },
     {
       "pattern": "^On .{0,80}wrote\\s*:",
+      "flags": [
+        "M"
+      ]
+    },
+    {
+      "pattern": "^Le [^\\n]{0,160}\\n[^\\n]{0,40}écrit\\s*:",
+      "flags": [
+        "M"
+      ]
+    },
+    {
+      "pattern": "^On [^\\n]{0,160}\\n[^\\n]{0,40}wrote\\s*:",
       "flags": [
         "M"
       ]
