@@ -129,4 +129,4 @@ def test_configured_mailbox_is_null_where_nothing_names_one(monkeypatch):
 def test_configured_mailbox_refuses_an_unknown_provider():
     """A null there would read as "nothing names one", which is a guess."""
     with pytest.raises(ValueError):
-        providers.configured_mailbox("imap")
+        providers.configured_mailbox("pop3")

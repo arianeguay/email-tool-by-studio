@@ -56,7 +56,7 @@ _SELECT = (
 _BODY_SELECT = "id,uniqueBody"
 
 # A precedent hit (STU-872): when it was written and what it says, nothing else.
-_PRECEDENT_SELECT = "id,receivedDateTime,uniqueBody"
+_PRECEDENT_SELECT = "id,receivedDateTime,parentFolderId,uniqueBody"
 
 # An earlier turn of the conversation being answered (STU-941): the precedent fields
 # plus `from`, for the per-turn domain veto (STU-1467). Read for the opposite reason
@@ -901,24 +901,27 @@ class OutlookFetcher:
         }
 
     def search_messages(self, query: str, max_results: int) -> list[dict]:
-        """Prior mail matching `query`, as `{date, body}` hits (STU-872).
+        """Prior mail matching `query`, as `{date, direction, body}` hits (STU-872).
 
         `/me/messages` is the whole mailbox, not a folder, so the club's own sent
         replies are searched alongside what parents wrote — which is the half a
         precedent is wanted for. Deleted Items and Junk are dropped back out
         (STU-965): a phishing mail Outlook filed as junk, or an exchange somebody
         deleted, is the last thing to show the drafter as how the club writes.
+        Each hit says whether the club sent it, read from Sent Items the way a
+        thread turn is: a deployment may let a recent sent reply ground the club's
+        current state, and never a parent's message (STU-2000).
         """
-        return [
-            projection.message_to_precedent(
-                self._session.get(
-                    f"/me/messages/{message_id}", {"$select": _PRECEDENT_SELECT}, _TEXT_BODY
-                )
+        sent_ids = self._folder_ids(("sentitems",))
+        hits = []
+        for message_id in _list_message_ids(
+            self._session, query, max_results, self._gone_folder_ids()
+        ):
+            raw = self._session.get(
+                f"/me/messages/{message_id}", {"$select": _PRECEDENT_SELECT}, _TEXT_BODY
             )
-            for message_id in _list_message_ids(
-                self._session, query, max_results, self._gone_folder_ids()
-            )
-        ]
+            hits.append(projection.message_to_precedent(raw, raw.get("parentFolderId") in sent_ids))
+        return hits
 
     def fetch_inputs(self, query: str, max_results: int,
                      since: str | None = None) -> list[dict]:
