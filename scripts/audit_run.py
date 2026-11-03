@@ -734,6 +734,7 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     finding, not something to explain away.
     """
     from email_classifier import draft_delta
+    from email_classifier.placeholder import flag_sent
     from email_classifier.providers import get_drafter, get_thread_reader
     from email_classifier.qa_bakeoff import drafts_from_journal
     from email_classifier.stage1.policy import load_policy
@@ -769,6 +770,7 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     still = {t for t in drafted if drafter.find_draft(t)}
     sent_bodies = {t: r["body"] for t, r in replies.items()}
     rows = draft_delta.compare(drafted, sent_bodies, still)
+    sent_with_placeholder = flag_sent(sent_bodies)
 
     print(json.dumps({
         "report": str(report_path),
@@ -781,6 +783,8 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
         # field: an unjoined row means something different in each case.
         "mailbox": mailbox,
         "unjoined": sum(1 for r in rows if r["similarity"] is None),
+        # A parent received the drafter's `[À COMPLÉTER` marker (STU-2049).
+        "sent_with_placeholder": sent_with_placeholder,
         **draft_delta.summarise(rows, list(drafted.values()), list(sent_bodies.values())),
         "rows": rows,
     }, indent=2, ensure_ascii=False))

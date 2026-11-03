@@ -243,6 +243,8 @@ class _Session:
         draft["body"] = payload["body"]["content"]
         if "toRecipients" in payload:
             draft["toRecipients"] = payload["toRecipients"]
+        if "categories" in payload:
+            draft["categories"] = payload["categories"]
         return {}
 
 
@@ -269,7 +271,8 @@ def test_a_second_draft_on_the_same_conversation_rewrites_the_first():
     result = OutlookDrafter(session).upsert_reply_draft("m1", "t1", "Version corrigée.")
 
     assert result == {"draft_id": "d1", "updated": True}
-    assert session.drafts == {"d1": {"conversationId": "t1", "body": "Version corrigée."}}
+    assert session.drafts == {"d1": {"conversationId": "t1", "body": "Version corrigée.",
+                                     "categories": []}}
     assert not any("createReply" in url for _, url, _ in session.calls)
 
 
@@ -313,6 +316,26 @@ def test_a_reply_recipient_with_no_name_is_still_addressed():
     assert session.drafts["d1"]["toRecipients"] == [
         {"emailAddress": {"address": "parent@videotron.ca"}}
     ]
+
+
+def test_a_draft_holding_a_placeholder_is_marked_in_the_same_write():
+    """STU-2049: the Drafts list shows which draft needs a human's input."""
+    session = _Session()
+
+    OutlookDrafter(session).upsert_reply_draft(
+        "m1", "t1", "Le tournoi a lieu le [À COMPLÉTER : date du tournoi].")
+
+    assert session.drafts["d1"]["categories"] == ["ec/à-compléter"]
+    assert sum(1 for method, *_ in session.calls if method == "PATCH") == 1
+
+
+def test_a_rewrite_without_a_placeholder_clears_the_mark():
+    session = _Session({"d1": {"conversationId": "t1", "body": "[À COMPLÉTER : prix]",
+                               "categories": ["ec/à-compléter"]}})
+
+    OutlookDrafter(session).upsert_reply_draft("m1", "t1", "Le prix est de 120 $.")
+
+    assert session.drafts["d1"]["categories"] == []
 
 
 def test_a_draft_is_deleted_by_id():
