@@ -242,7 +242,7 @@ def _check(args: argparse.Namespace) -> tuple[int, str, deploy.Drift | None]:
     age = _duration(health["last_notification_age_seconds"])
     # `.get`: a host still serving the payload from before STU-1017 has no commit to
     # compare, which is a deploy this check cannot vouch for and not a crash.
-    drift = deploy.measure(health.get("commit"))
+    drift = deploy.measure(health.get("commit"), kernel=health.get("kernel_commit"))
     if health["status"] != "ok":
         # Silence beats staleness: a webhook receiving nothing is not classifying
         # mail at all, whichever commit it would have classified it with.
