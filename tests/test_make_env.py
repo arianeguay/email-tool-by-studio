@@ -62,3 +62,15 @@ def test_an_offline_goal_runs_without_op_run(tmp_path):
     )
     assert "op://" not in result.stderr
     assert result.returncode == 0, result.stderr
+
+
+def test_pull_webhook_dispatches_without_op_run(tmp_path):
+    (tmp_path / ".env").write_text("OUTLOOK_TENANT_ID=op://Dev/item/field\n")
+    result = subprocess.run(
+        ["make", "-n", "-C", str(tmp_path), "-f", str(MAKEFILE), "pull-webhook"],
+        env={**os.environ, "GIT_CEILING_DIRECTORIES": str(tmp_path.parent)},
+        capture_output=True,
+        text=True,
+    )
+    assert "op://" not in result.stderr
+    assert result.returncode == 0, result.stderr

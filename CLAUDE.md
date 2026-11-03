@@ -363,7 +363,8 @@ through (measured 2026-11-02: without `-e` the variable arrives as `op://`, with
 arrives resolved). A key that still carries `op://` is refused at parse time, before any
 recipe and so before any LLM or Graph call, with a message that names the command. Only
 the targets that read no secret run without `op run`: `test`, `test-venv`, `test-ner`,
-`clean` and the four `*-check` targets that compare a committed record (`OFFLINE_GOALS`).
+`clean`, the four `*-check` targets that compare a committed record, and `pull-webhook`,
+whose workstation half only opens ssh to the serving host (`OFFLINE_GOALS`, STU-2066).
 A new target is refused until it is added there, which is the direction a forgotten entry
 must fail in. A host whose `.env` holds plain values never trips the refusal.
 
