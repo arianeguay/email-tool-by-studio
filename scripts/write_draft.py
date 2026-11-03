@@ -31,6 +31,9 @@ selection, but a human can start a draft between that and this write: on run
 seconds before they sent it. Anything else is journaled `held` and the stage fails,
 so the conversation is left to the human and `drafts-post` counts it held.
 
+The commitments the body makes (a forward it claims, a follow-up it promises) go to
+`logs/drafts/commitments.jsonl` beside the journal, from the same body (STU-1065).
+
 Output: the drafting stage's output plus the `draft_id` the mailbox gave back,
 which is the shape `draft-qa` reads as its `previous_stage_output`. Its
 `draft_body` stays tokenized — the reviewer reads what the drafter wrote, and the
@@ -43,6 +46,7 @@ from pathlib import Path
 
 import yaml
 
+from email_classifier import commitments
 from email_classifier.anonymize import deanonymize, load_keymap
 from email_classifier.apply.draft_journal import record
 from email_classifier.apply.journal import read_entries
@@ -95,6 +99,10 @@ def main() -> None:
     record(journal, run_id, message_id, thread_id, "ok",
            draft_id=result["draft_id"], updated=result["updated"],
            prompt_fingerprint=item["prompt_fingerprint"])
+    # Here and not in `drafts-post`, so a run that dies after this write still leaves
+    # the promise listed (STU-1065, on STU-917's reasoning).
+    commitments.record_draft(commitments.path_beside(journal), run_id, thread_id,
+                             result["draft_id"], body)
     print(f"[write-draft] {thread_id} -> {result['draft_id']}", file=sys.stderr)
     json.dump({**draft, "draft_id": result["draft_id"]}, sys.stdout, ensure_ascii=False)
 
