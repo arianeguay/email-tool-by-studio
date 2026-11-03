@@ -39,6 +39,10 @@ class Policy:
     # dry-run-plans. True only removes the manual trigger — what may be applied stays
     # bounded by deterministic_can_finalize and destructive_actions_allowed.
     auto_apply: bool = False
+    # One status category per conversation on its latest inbound message (STU-2007),
+    # written even while `auto_apply` is false: it moves nothing, and it is what tells
+    # the reviewer a deliberate silence from a failure. Outlook only (see `status`).
+    status_labels: bool = False
     # Empty = anonymization off (Stage 2 sees cleartext). Stage 1 always runs on
     # cleartext, before any escalation, whatever the scope.
     anonymization_fields: list[str] = field(default_factory=list)
@@ -170,13 +174,24 @@ def load_policy(path: Path) -> Policy:
             f"auto_apply must be true or false in {path}, got {auto_apply!r}: "
             "a quoted 'false' would read as true and mutate the mailbox"
         )
+    status_labels = data.get("status_labels", False)
+    if not isinstance(status_labels, bool):
+        raise ValueError(f"status_labels must be true or false in {path}, got {status_labels!r}")
+    email_provider = data.get("email", {}).get("provider", "gmail")
+    if status_labels and email_provider != "outlook":
+        raise ValueError(
+            f"status_labels needs email.provider outlook in {path}, got {email_provider!r}: "
+            "the status names are accented, which an IMAP keyword cannot carry, and "
+            "Gmail has no thread reader to tell a sent reply from a waiting one"
+        )
     return Policy(
         deterministic_can_finalize=data["deterministic_can_finalize"],
         destructive_actions_allowed=data.get("destructive_actions_allowed", []),
         frontier_log_file=log_cfg.get("file", True),
         frontier_log_stdout=log_cfg.get("stdout", False),
-        email_provider=data.get("email", {}).get("provider", "gmail"),
+        email_provider=email_provider,
         auto_apply=auto_apply,
+        status_labels=status_labels,
         anonymization_fields=ANONYMIZATION_SCOPES.get(scope, []),
         start_date=start_date,
         timezone=timezone,

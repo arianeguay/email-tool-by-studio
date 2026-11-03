@@ -21,7 +21,7 @@ without the optional `[fetch-outlook]` deps installed.
 from email_classifier.placeholder import PLACEHOLDER_CATEGORY, holds_placeholder
 
 _DRAFTS_FOLDER = "/me/mailFolders/drafts/messages"
-_DRAFT_FIELDS = "id,isDraft,lastModifiedDateTime,sentDateTime"
+_DRAFT_FIELDS = "id,isDraft,lastModifiedDateTime,sentDateTime,categories"
 
 
 class OutlookDrafter:

@@ -12,6 +12,7 @@ pytest.importorskip("flask")
 
 import yaml
 
+from email_classifier.apply import status
 from email_classifier.apply.executor import PROCESSED_LABEL
 from email_classifier.apply.journal import ApplyJournal, read_entries
 from email_classifier.apply.undo import undo_entries
@@ -220,3 +221,39 @@ def test_a_reply_reconciles_the_thread_an_earlier_run_archived(tmp_path):
     )
     assert writer.labels_of("opener") == {"ec/C", PROCESSED_LABEL}
     assert writer.labels_of("reply") == {"INBOX"}
+
+
+class _NoDrafts:
+    def find_draft(self, thread_id):
+        return None
+
+    def get_draft(self, draft_id):
+        return None
+
+    def last_sent_at(self, thread_id):
+        return None
+
+
+def test_status_labels_write_with_auto_apply_off_and_undo_removes_them(tmp_path):
+    """STU-2007: the flag writes one status even when apply only plans, journaled as a
+    real write so `make undo RUN_ID=` takes it off."""
+    writer = inboxed(FakeWriter(), "m1")
+    client = _client(
+        tmp_path,
+        FakeGraphSession(by_id={"m1": _raw_message("m1")}),
+        stage2=_classifier("label_archive"),
+        writer=writer,
+        policy_path=_policy(tmp_path, auto_apply=False, status_labels=True),
+        reply_drafter=_NoDrafts(),
+        thread_reader=_NoDrafts(),
+    )
+    assert client.post("/graph", json={"value": [_notification("m1")]}).status_code == 202
+    _drain(client)
+
+    assert writer.labels_of("m1") == {"INBOX", status.NO_REPLY}
+    run_id = _run_id(tmp_path)
+    assert _journals(tmp_path) == [f"{run_id}.jsonl", f"{run_id}.plan.jsonl"]
+
+    undo_entries(read_entries(tmp_path / "logs" / "applied" / f"{run_id}.jsonl"), writer,
+                 ApplyJournal(tmp_path / "undo.jsonl", "undo"))
+    assert writer.labels_of("m1") == {"INBOX"}
