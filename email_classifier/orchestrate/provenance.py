@@ -28,7 +28,7 @@ SCHEDULE_TRIGGER = "schedule"
 
 # The name detector's own dependencies. Tokenization is upstream of every span GLiNER
 # returns, so these decide recall the way rules.yaml decides a rule outcome (STU-919).
-_DETECTOR_PACKAGES = ("gliner", "transformers", "torch")
+_DETECTOR_PACKAGES = ("gliner", "transformers", "torch", "sentencepiece", "protobuf")
 # The checkout this package was imported from. A deployment pins the kernel as a
 # submodule, so the deployment's own commit does not name the code that ran (STU-1996).
 KERNEL_ROOT = Path(__file__).resolve().parents[2]
