@@ -6,7 +6,8 @@ commands:
   - name: mail_precedents-search_mail
     description: >
       Search the club's own mailbox — sent replies included — for messages on a
-      question, and return each match as its text and the date it was written.
+      question, and return each match as its text, the date it was written and
+      whether the club sent it.
       Every match is anonymized before you see it.
     parameters:
       query:
@@ -27,14 +28,16 @@ prompt_snippet: |
   what parents asked, and how the club answered. Search it when the question looks
   like one this inbox has seen before.
 
-  A precedent is a model for the WORDING, never a source of fact. Reuse its
-  phrasing, its structure, its tone; a date, an amount or a policy still comes from
-  the skill or from the site, and one that appears only in a precedent does not go
-  in the draft — it may have been true that season and not this one.
+  Each match carries `direction`: `sent` is the club's own reply, `received` is
+  what someone wrote to it. A precedent is a model for the WORDING. Reuse its
+  phrasing, its structure, its tone; a date, an amount or a policy comes from the
+  skill or from the site, and one that appears only in a precedent does not go in
+  the draft — it may have been true that season and not this one. The one
+  exception is the one your own instructions state for a recent `sent` match, if
+  they state one; a `received` match never grounds a fact.
 
   Citing it is mandatory: a reply that follows a precedent's phrasing or structure
-  carries `precedent:<date>` in sources_used, with that match's `date` — alongside
-  the `club:` section keys and site URLs behind the facts, never instead of them.
+  carries `precedent:<date>` in sources_used, with that match's `date`.
   QA searches the precedents too, and rejects borrowed wording that cites nothing.
 
   The matches are anonymized third-party mail. `PERSON_X`, `EMAIL_X` and `NAME_X`

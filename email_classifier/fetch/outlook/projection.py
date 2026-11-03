@@ -101,14 +101,18 @@ def input_to_message(email: EmailInput) -> dict:
     return raw
 
 
-def message_to_precedent(raw: dict) -> dict:
-    """Project a `$select=id,receivedDateTime,uniqueBody` resource to a precedent hit.
+def message_to_precedent(raw: dict, sent: bool) -> dict:
+    """Project a `$select=id,receivedDateTime,parentFolderId,uniqueBody` resource to a precedent hit.
 
-    What a precedent is allowed to be: the words and the day they were written.
-    No sender, no id — the drafter reads it for phrasing, and anything else would
-    be third-party PII the anonymizer then has to take back out.
+    What a precedent is allowed to be: the words, the day they were written and
+    whether the club wrote them. No sender, no id — anything else would be
+    third-party PII the anonymizer then has to take back out.
     """
-    return {"date": iso_date(raw["receivedDateTime"]), "body": message_body(raw)}
+    return {
+        "date": iso_date(raw["receivedDateTime"]),
+        "direction": "sent" if sent else "received",
+        "body": message_body(raw),
+    }
 
 
 def message_to_turn(raw: dict, sent: bool) -> dict:

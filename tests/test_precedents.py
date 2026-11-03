@@ -24,6 +24,7 @@ requires_gliner = pytest.mark.skipif(
 HITS = [
     {
         "date": "2025-09-12T13:04:00+00:00",
+        "direction": "received",
         "body": (
             "Bonjour Marie Tremblay,\n"
             "Ma fille Léa joue U15 et nous devons annuler. "
@@ -32,6 +33,7 @@ HITS = [
     },
     {
         "date": "2025-09-13T09:20:00+00:00",
+        "direction": "sent",
         "body": (
             "Bonjour Marie Tremblay, le remboursement est traité sous 10 jours ouvrables.\n"
             "Payeur : Isabelle Bergeron — inscrire Nathan au mini-volley le samedi."
@@ -69,6 +71,7 @@ def test_the_date_survives_so_a_precedent_can_be_cited():
     result = precedents.search("remboursement", _Searcher(HITS))
 
     assert [m["date"] for m in result["matches"]] == [h["date"] for h in HITS]
+    assert [m["direction"] for m in result["matches"]] == ["received", "sent"]
     assert "remboursement est traité sous 10 jours" in result["matches"][1]["body"]
 
 
@@ -82,7 +85,7 @@ def test_a_precedent_token_is_not_restored_to_the_batch_s_person():
 
 @requires_gliner
 def test_a_long_precedent_is_truncated():
-    long_hit = [{"date": HITS[0]["date"], "body": "a" * (precedents.BODY_LIMIT + 500)}]
+    long_hit = [{"date": HITS[0]["date"], "direction": "sent", "body": "a" * (precedents.BODY_LIMIT + 500)}]
 
     body = precedents.search("x", _Searcher(long_hit))["matches"][0]["body"]
 
@@ -125,22 +128,35 @@ def _message(message_id: str, body: str) -> dict:
     }
 
 
+def _filed(message: dict, folder: str) -> dict:
+    return {**message, "parentFolderId": f"{folder}-id"}
+
+
 def test_the_whole_mailbox_is_searched_sent_replies_included():
     # `/me/messages` is every folder; a folder-scoped path would miss exactly the
     # half a precedent is wanted for — what the club itself wrote back.
     session = _Session({
-        "sent-1": _message("sent-1", "Le remboursement est traité sous 10 jours.")
+        "sent-1": _filed(_message("sent-1", "Le remboursement est traité sous 10 jours."),
+                         "sentitems"),
+        "asked-1": _filed(_message("asked-1", "Comment se fait le remboursement?"),
+                          "inbox"),
     })
 
     hits = OutlookFetcher(session).search_messages("remboursement", 5)
 
-    assert hits == [{"date": "2025-09-13T09:20:00+00:00",
-                     "body": "Le remboursement est traité sous 10 jours."}]
+    # Which half a hit came from is what lets a deployment treat a recent sent
+    # reply as the club's current state and a parent's question as wording only.
+    assert hits == [
+        {"date": "2025-09-13T09:20:00+00:00", "direction": "sent",
+         "body": "Le remboursement est traité sous 10 jours."},
+        {"date": "2025-09-13T09:20:00+00:00", "direction": "received",
+         "body": "Comment se fait le remboursement?"},
+    ]
     listing = next(get for get in session.gets if get[0] == "/me/messages")
     assert listing[1]["$search"] == '"remboursement"'
     message = session.gets[-1]
     # The privacy allowlist at the request boundary: no sender, no recipients.
-    assert message[1]["$select"] == "id,receivedDateTime,uniqueBody"
+    assert message[1]["$select"] == "id,receivedDateTime,parentFolderId,uniqueBody"
 
 
 def test_a_deleted_or_junked_message_is_not_a_precedent():
