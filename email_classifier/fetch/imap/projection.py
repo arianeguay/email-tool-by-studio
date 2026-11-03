@@ -88,5 +88,9 @@ def message_to_turn(message: EmailMessage, received: datetime, sent: bool) -> di
     }
 
 
-def message_to_precedent(message: EmailMessage, received: datetime) -> dict:
-    return {"date": iso_date(received), "body": message_body(message)}
+def message_to_precedent(message: EmailMessage, received: datetime, sent: bool) -> dict:
+    return {
+        "date": iso_date(received),
+        "direction": "sent" if sent else "received",
+        "body": message_body(message),
+    }

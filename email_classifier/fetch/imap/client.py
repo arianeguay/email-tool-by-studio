@@ -180,7 +180,8 @@ class ImapFetcher:
     def sent_since(self, since: str) -> list[dict]:
         sent = self._mailbox.folder("Sent")
         return [
-            projection.message_to_precedent(projection.parse(raw.raw), raw.received)
+            {"date": projection.iso_date(raw.received),
+             "body": projection.message_body(projection.parse(raw.raw))}
             for raw in self._session.fetch(sent, self._session.search(sent, "SINCE", _imap_date(since)))
             if "\\Draft" not in raw.flags
         ]
@@ -188,16 +189,17 @@ class ImapFetcher:
     def search_messages(self, query: str, max_results: int) -> list[dict]:
         """Prior mail matching `query`, sent replies included; never Trash or Junk."""
         hits: list[tuple] = []
-        for folder in [*self._mailbox.incoming_folders(), self._mailbox.folder("Sent")]:
+        sent_folder = self._mailbox.folder("Sent")
+        for folder in [*self._mailbox.incoming_folders(), sent_folder]:
             uids = self._session.search(folder, "TEXT", f'"{query}"')[-max_results:]
             hits.extend(
-                (raw.received, projection.parse(raw.raw))
+                (raw.received, projection.parse(raw.raw), folder == sent_folder)
                 for raw in self._session.fetch(folder, uids)
                 if "\\Draft" not in raw.flags
             )
         hits.sort(key=lambda hit: hit[0], reverse=True)
-        return [projection.message_to_precedent(message, received)
-                for received, message in hits[:max_results]]
+        return [projection.message_to_precedent(message, received, sent)
+                for received, message, sent in hits[:max_results]]
 
     def reply_source(self, message_id: str) -> EmailMessage:
         located = self._mailbox.locate(message_id, self._readable())

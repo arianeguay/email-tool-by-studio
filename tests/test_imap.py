@@ -259,12 +259,17 @@ def test_thread_history_marks_our_sent_turns_and_skips_the_answered_mail(imap):
 
 
 def test_precedent_search_covers_sent_but_never_trash(imap):
-    imap.add("Sent", _mail("s1", body="Le cours est annulé"))
+    imap.add("Sent", _mail("s1", body="Le cours est annulé"),
+             received="02-Nov-2026 09:00:00 +0000")
+    imap.add("INBOX", _mail("i1", body="Le cours a lieu?"),
+             received="01-Nov-2026 09:00:00 +0000")
     imap.add("Trash", _mail("t1", body="Le cours est annulé"))
 
     hits = ImapFetcher(_session(imap)).search_messages("cours", 10)
 
-    assert [h["body"] for h in hits] == ["Le cours est annulé"]
+    assert [(h["direction"], h["body"]) for h in hits] == [
+        ("sent", "Le cours est annulé"), ("received", "Le cours a lieu?"),
+    ]
 
 
 def test_label_ids_read_the_folder_on_the_label_axis(imap):
