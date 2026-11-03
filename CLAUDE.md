@@ -11,6 +11,24 @@ a deployment (`EMAIL_CLASSIFIER_DEPLOYMENT_ROOT`).
 Measurements quoted here as "measured on a production deployment" were taken on a real
 mailbox the kernel serves; the deployment that took them keeps its own record of them.
 
+## Real data stays out of this repository
+
+This repository is public, and a pushed commit stays reachable by SHA after a squash
+(STU-2077). A test, fixture, commit message or PR body uses invented values, never a
+name, address, team or timestamp copied from an issue, a report or a real mailbox. On
+2026-11-03 two PRs shipped a real sender name and a real team name that way.
+
+`make hooks` installs the mechanism (STU-2078): `scripts/check_real_data.py` refuses a
+commit whose added lines or message carry a term the deployments own. The terms never
+enter this repository: `~/.config/email-classifier/real-data` lists, one path per line,
+each deployment's keymap (`logs/anonymization/keymap.json`, its values) and any plain
+term list (team names, hosts), and a hit names the file, the line and the keymap token,
+never the term. A `!term` line there drops a keymap value that names nobody (the
+detector's false positives land in the keymap too). It fails closed: an installed hook with no config, an unreadable source
+or no term at all refuses the commit, since a guard that read nothing passes everything.
+A machine that never ran `make hooks` (CI, a cloud session) has no guard, which is why
+the rule above is written down as well.
+
 ## Setup
 
 ```bash
