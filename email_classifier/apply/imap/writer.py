@@ -9,6 +9,10 @@ The message is found again by `Message-ID` on every call: a move gives it a new
 UID, so a UID is never what the journal or undo holds.
 """
 
+from email.utils import parseaddr
+
+from email_classifier.fetch.headers import allowlisted
+from email_classifier.fetch.imap import projection
 from email_classifier.fetch.imap.client import Mailbox, keywords
 from email_classifier.fetch.imap.session import INBOX
 from email_classifier.providers import (
@@ -81,3 +85,29 @@ class ImapWriter:
         folder, raw = located
         label = places[folder]
         return keywords(raw.flags) + ([label] if label else [])
+
+    def sender_and_headers(self, message_id: str) -> tuple[str, dict[str, str]] | None:
+        """The message's sender address and allowlisted headers, None when it is gone."""
+        located = self._mailbox.locate(message_id, list(self._places()))
+        if located is None:
+            return None
+        message = projection.parse(located[1].raw)
+        return _sender(message), allowlisted(
+            [{"name": k, "value": str(v)} for k, v in message.items()]
+        )
+
+    def seen_from(self, sender: str) -> list[bool]:
+        """One entry per message from `sender` in the folders this app files to: read or not."""
+        seen = []
+        for folder in self._places():
+            uids = self._mailbox.session.search(folder, "HEADER", "From", f'"{sender}"')
+            seen.extend(
+                "\\Seen" in raw.flags
+                for raw in self._mailbox.session.fetch(folder, uids)
+                if _sender(projection.parse(raw.raw)) == sender
+            )
+        return seen
+
+
+def _sender(message) -> str:
+    return parseaddr(str(message.get("From", "")))[1].lower()
