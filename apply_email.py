@@ -28,6 +28,7 @@ from pathlib import Path
 from email_classifier import deployment
 from email_classifier.apply.executor import apply_verdicts, render_summary
 from email_classifier.apply.journal import ApplyJournal, journal_path, read_entries
+from email_classifier.apply import unsubscribe
 from email_classifier.apply.undo import (
     DraftUndoOutcome,
     drafts_of_run,
@@ -102,11 +103,17 @@ def _run(args: argparse.Namespace) -> int:
     journal = ApplyJournal(
         journal_path(args.journal_dir, run_id, dry_run=not args.apply), run_id
     )
+    writer = _writer(policy)
     outcomes = apply_verdicts(
-        verdicts, _writer(policy), policy, journal, taxonomy, dry_run=not args.apply
+        verdicts, writer, policy, journal, taxonomy, dry_run=not args.apply
+    )
+    unsubscribed = unsubscribe.unsubscribe(
+        verdicts, writer, policy, run_id, dry_run=not args.apply
     )
 
     print(render_summary(outcomes, dry_run=not args.apply))
+    if policy.auto_unsubscribe:
+        print(unsubscribe.render_summary(unsubscribed, dry_run=not args.apply))
     print(f"\nJournal written to {journal.path}", file=sys.stderr)
     if not args.apply:
         print("Re-run with --apply to execute this plan.", file=sys.stderr)

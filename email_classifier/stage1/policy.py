@@ -43,6 +43,9 @@ class Policy:
     # written even while `auto_apply` is false: it moves nothing, and it is what tells
     # the reviewer a deliberate silence from a failure. Outlook only (see `status`).
     status_labels: bool = False
+    # One-click unsubscribe from bulk senders the owner never reads (STU-2071). IMAP
+    # only: it is the one writer that reads a sender's `\Seen` history.
+    auto_unsubscribe: bool = False
     # Empty = anonymization off (Stage 2 sees cleartext). Stage 1 always runs on
     # cleartext, before any escalation, whatever the scope.
     anonymization_fields: list[str] = field(default_factory=list)
@@ -184,6 +187,15 @@ def load_policy(path: Path) -> Policy:
             "the status names are accented, which an IMAP keyword cannot carry, and "
             "Gmail has no thread reader to tell a sent reply from a waiting one"
         )
+    auto_unsubscribe = data.get("auto_unsubscribe", False)
+    if not isinstance(auto_unsubscribe, bool):
+        raise ValueError(
+            f"auto_unsubscribe must be true or false in {path}, got {auto_unsubscribe!r}"
+        )
+    if auto_unsubscribe and email_provider != "imap":
+        raise ValueError(
+            f"auto_unsubscribe needs email.provider imap in {path}, got {email_provider!r}"
+        )
     return Policy(
         deterministic_can_finalize=data["deterministic_can_finalize"],
         destructive_actions_allowed=data.get("destructive_actions_allowed", []),
@@ -192,6 +204,7 @@ def load_policy(path: Path) -> Policy:
         email_provider=email_provider,
         auto_apply=auto_apply,
         status_labels=status_labels,
+        auto_unsubscribe=auto_unsubscribe,
         anonymization_fields=ANONYMIZATION_SCOPES.get(scope, []),
         start_date=start_date,
         timezone=timezone,
