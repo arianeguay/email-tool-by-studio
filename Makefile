@@ -365,10 +365,13 @@ renew-graph-recreate: ## Replace it with one carrying the current GRAPH_CLIENT_S
 # SOURCE names what is asking, and the journal line carries it so the pilot gate can
 # read the hourly runs apart from a hand-run (STU-1082). HEALTH_JOURNAL sends a drill
 # to a throwaway path -- and not `JOURNAL`, which this file already spends on the
-# Studio run log `make qa-bakeoff` replays.
+# Studio run log `make qa-bakeoff` replays. VERDICT=1 prints the probe's own exit on
+# stdout and exits 0, for deploy-webhook: make exits 2 on any failed recipe, so the
+# sub-make's own exit cannot carry the probe's code (STU-2044).
 check-webhook:       ## Alert if the webhook stopped receiving notifications (cron hourly with SOURCE=cron; WAIT= seconds to let it come up; HEALTH_JOURNAL= a throwaway path for a drill)
 	$(PYTHON) scripts/check_webhook_health.py $(if $(WAIT),--wait $(WAIT)) \
-		$(if $(SOURCE),--source $(SOURCE)) $(if $(HEALTH_JOURNAL),--journal $(HEALTH_JOURNAL))
+		$(if $(SOURCE),--source $(SOURCE)) $(if $(HEALTH_JOURNAL),--journal $(HEALTH_JOURNAL)) \
+		$(if $(VERDICT),>&2; echo $$?)
 
 check-unverdicted:   ## Alert on Inbox mail no report holds a verdict for, since UNVERDICTED_SINCE (cron hourly with SOURCE=cron; UNVERDICTED_JOURNAL= a throwaway path for a drill) (STU-1502)
 	$(PYTHON) scripts/check_unverdicted.py $(if $(SOURCE),--source $(SOURCE)) \
@@ -451,9 +454,13 @@ deploy-webhook:      ## Reinstall, restart and verify the webhook on the checkou
 	# Exit 1 is a quiet mailbox, which says nothing about the deploy; 6 and 7 are the
 	# client secret's expiry and a missing expiry date (STU-1095), which say nothing
 	# about it either -- and blocking on 6 would block the deploy that carries the
-	# fix. What this verifies is 3 -- serving code `main` has moved past, which is
-	# what skipping the restart looks like (STU-1017). The hourly cron is what
-	# reports the rest, which is where those codes are aimed.
+	# fix. 10 is an audit entry about to lose its artifacts (STU-1168) and 8 a drift
+	# leg blind for several hourly runs, neither about this deploy (STU-2044). 1, 6,
+	# 7 and 10 also outrank the drift leg in the probe, so like 8 they leave this
+	# deploy unverified rather than failed. What this verifies is 3 -- serving code
+	# `main` has moved past, which is what skipping the restart looks like
+	# (STU-1017). The hourly cron is what reports the rest, which is where those
+	# codes are aimed.
 	# WAIT: the unit is Type=simple, so systemd returned as soon as the process
 	# forked -- seconds before it binds. Without it the check races the restart and
 	# reports the endpoint dead.
@@ -463,15 +470,15 @@ deploy-webhook:      ## Reinstall, restart and verify the webhook on the checkou
 	# never ran would report success: the exact silence STU-1017 added the exit-3 leg
 	# to break. Nothing fires it today only because the restart above is not tolerated
 	# and fails first -- a real protection, and an ordering nothing asserts.
-	# So the sub-make reports its own exit on stdout while everything it says goes to
-	# stderr: a number is the check's verdict, and no number at all is a privilege drop
-	# that never got that far. Probing `sudo -n true` first was the other candidate and
-	# answers a different question -- whether sudo worked a moment ago, for a command
-	# that is not this one.
-	$(AS_SERVICE) sh -c '$(MAKE) check-webhook WAIT=60 SOURCE=deploy >&2; echo $$?' \
+	# So the sub-make reports the probe's exit on stdout (VERDICT=1) while everything
+	# else goes to stderr: a number is the check's verdict, and no number at all is a
+	# privilege drop that never got that far. Probing `sudo -n true` first was the
+	# other candidate and answers a different question -- whether sudo worked a
+	# moment ago, for a command that is not this one.
+	$(AS_SERVICE) $(MAKE) -s --no-print-directory check-webhook WAIT=60 SOURCE=deploy VERDICT=1 \
 		| { read verdict || verdict=""; \
 		    case "$$verdict" in \
-			0|1|6|7) ;; \
+			0|1|6|7|8|10) ;; \
 			'') echo "deploy-webhook: the verification never ran -- '$(AS_SERVICE)' failed before reaching it, so nothing checked this deploy." >&2; exit 1;; \
 			*) echo "deploy-webhook: check-webhook exited $$verdict, so this host is not serving the commit it was deployed from." >&2; exit 1;; \
 		    esac; }
