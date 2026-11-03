@@ -21,6 +21,11 @@ import yaml
 # null, which an audit reads as "unrecorded" and then guesses at a dump (STU-859).
 LIVE_INPUT = "webhook:push-notification"
 
+# A run a scheduler launched with nobody at the keyboard (STU-2069). An IMAP mailbox has
+# no push path, so a deployment polling it on a timer floods the gate the way push does.
+TRIGGER_ENV = "EMAIL_CLASSIFIER_TRIGGER"
+SCHEDULE_TRIGGER = "schedule"
+
 # The name detector's own dependencies. Tokenization is upstream of every span GLiNER
 # returns, so these decide recall the way rules.yaml decides a rule outcome (STU-919).
 _DETECTOR_PACKAGES = ("gliner", "transformers", "torch")
@@ -207,4 +212,6 @@ def collect(
         # wherever nothing names one — Gmail always, Outlook under a delegated grant,
         # and any run over a frozen dump, which read no mailbox at all today.
         "mailbox": mailbox,
+        # Who launched the run (STU-2069): `schedule` files itself like a push run.
+        "trigger": os.environ.get(TRIGGER_ENV) or None,
     }

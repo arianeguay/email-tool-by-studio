@@ -5,7 +5,7 @@ became blocking rather than smaller: six issues (STU-841, 860, 897, 921, 1038, 1
 the same human reading push reports and hand-appending entries, at a rate inbound mail
 sets. On a real club mailbox that does not converge.
 
-Only a push run files itself. A `make run` is a person at a keyboard who is already
+Only a push run, or a scheduled one (STU-2069), files itself. A `make run` is a person at a keyboard who is already
 looking, and `audit-gate` holding it costs nothing; the flood is the webhook's, one
 report per notification batch (STU-939). The test is the report's own
 `provenance.input_path`, which the push path records as `LIVE_INPUT` (STU-859) — not the
@@ -34,7 +34,7 @@ from email_classifier.audit import (
     rule_stats,
     unrecorded_drafting_note,
 )
-from email_classifier.orchestrate.provenance import LIVE_INPUT
+from email_classifier.orchestrate.provenance import LIVE_INPUT, SCHEDULE_TRIGGER
 
 # What a filed entry is allowed to leave null, and why. `check_audit_entries` demands a
 # `schema_note` beside each (STU-831), and the note is read by a person deciding whether
@@ -167,7 +167,9 @@ def file_unaudited(reports_dir: Path, audit_log: Path, skipped: Path,
         # null and `log-check` would read it as drift rather than as the odd report.
         if not run_id or run_id in covered:
             continue
-        if (report.get("provenance") or {}).get("input_path") != LIVE_INPUT:
+        provenance = report.get("provenance") or {}
+        if (provenance.get("input_path") != LIVE_INPUT
+                and provenance.get("trigger") != SCHEDULE_TRIGGER):
             continue
         # The report's own mtime, not today: a walk that catches up on a week of runs
         # would otherwise date them all to the day someone noticed.

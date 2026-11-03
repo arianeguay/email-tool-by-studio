@@ -49,7 +49,8 @@ def test_collect_ignores_untracked_files(tmp_path):
     assert collect("mock", repo / "rules.yaml", repo)["git_dirty"] is False
 
 
-def test_collect_degrades_outside_git_and_without_rules(tmp_path):
+def test_collect_degrades_outside_git_and_without_rules(tmp_path, monkeypatch):
+    monkeypatch.delenv("EMAIL_CLASSIFIER_TRIGGER", raising=False)
     p = collect("claude-code", tmp_path / "nope.yaml", tmp_path)
     p.pop("detector_stack")
     p.pop("kernel_commit")
@@ -64,7 +65,14 @@ def test_collect_degrades_outside_git_and_without_rules(tmp_path):
         "input_sha256": None,
         "start_date": None,
         "mailbox": None,
+        "trigger": None,
     }
+
+
+def test_collect_records_a_scheduled_trigger(tmp_path, monkeypatch):
+    """A timer-launched run says so, which is what files its audit entry (STU-2069)."""
+    monkeypatch.setenv("EMAIL_CLASSIFIER_TRIGGER", "schedule")
+    assert collect("mock", tmp_path / "nope.yaml", tmp_path)["trigger"] == "schedule"
 
 
 def test_collect_names_the_kernel_apart_from_the_deployment(tmp_path):
