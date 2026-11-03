@@ -106,6 +106,11 @@ SHELVES: tuple[Shelf, ...] = (
     # names no run, so `run_scoped` leaves it alone, which is what it needs: it is the
     # accumulated state of the machine.
     Shelf("logs/anonymization", max_age_days=30, keep_last=3),
+    # Redacted (draft, sent) pairs behind each candidate rule (STU-1108). One file per
+    # window and not per run, so age is the whole rule; the reports' 30 days, since a
+    # candidate is read within a review cycle or accepted into a skill, and a skill does
+    # not need its evidence kept.
+    Shelf("logs/corrections", max_age_days=30, run_scoped=False),
     # Studio's own run logs, prunable since a run records its own cost (STU-1012).
     # They were load-bearing for the audit trail while they were the only place token
     # counts existed, and nothing managed them — 642 files back to 2026-06-17. Their
