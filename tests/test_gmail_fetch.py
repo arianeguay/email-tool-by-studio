@@ -17,7 +17,8 @@ class _Exec:
     def __init__(self, value):
         self._value = value
 
-    def execute(self):
+    def execute(self, **kwargs):
+        self.kwargs = kwargs
         return self._value
 
 
@@ -328,7 +329,8 @@ class _Raising:
     def get(self, **_kwargs):
         return self
 
-    def execute(self):
+    def execute(self, **kwargs):
+        self.kwargs = kwargs
         raise self._error
 
 
@@ -357,6 +359,28 @@ def test_a_403_stays_a_scope_problem(stub_refresh_error):
 
     with pytest.raises(_HttpError):
         service.users().messages().get(id="m1").execute()
+
+
+def test_every_guarded_call_asks_the_client_to_retry_a_rate_limit(stub_refresh_error):
+    """STU-2098: googleapiclient retries a 429 or 403 `rateLimitExceeded` only when
+    `num_retries` is set, and a long thread expansion hits the per-minute quota."""
+    raw = _Exec({"messages": []})
+    service = gmail.GrantAware(types.SimpleNamespace(
+        users=lambda: types.SimpleNamespace(
+            messages=lambda: types.SimpleNamespace(list=lambda **_k: raw))))
+
+    service.users().messages().list(userId="me").execute()
+
+    assert raw.kwargs["num_retries"] > 0
+
+
+def test_a_lost_grant_is_still_raised_and_not_swallowed_by_retries(stub_refresh_error):
+    raising = _Raising(_HttpError(401))
+
+    with pytest.raises(gmail.GrantLost):
+        gmail.GrantAware(raising).users().messages().get(id="m1").execute()
+
+    assert raising.kwargs["num_retries"] > 0
 
 
 def test_the_guard_leaves_a_working_call_alone(stub_refresh_error):
