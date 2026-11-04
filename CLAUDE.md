@@ -2794,7 +2794,9 @@ Consequences, each one tested:
   with no history and no tools, whether the sent reply kept, extended or contradicted
   the draft's facts. Its verdict restates its lists and is cross-checked like
   `draft-coverage`'s: `incoherent` and `error` stay apart. `by_outcome` keeps the
-  lexical bands; `by_facts` is what an audit quotes.
+  lexical bands; `by_facts` is what an audit quotes. The reader runs on
+  `STUDIO_PROVIDER` (STU-2088): it reads real mail on the serving host, where the
+  bake-offs' `anthropic` default has no key and every read came back `error`.
 - `email_classifier/pilot_delta.py` + `scripts/pilot_delta.py`: the same reading as
   `audit_run.py reviewed`, but over a whole deployment window and grouped by the
   commit that drafted (STU-1182). `reviewed` figures one run; a deployment's exit
@@ -2836,7 +2838,8 @@ Consequences, each one tested:
   through `precedents.redact` before the reader sees them, which is also what the file
   keeps: read, never restored, so index-free placeholders. The shelf is age alone, 30
   days. Not `learn/`: that store promotes classification verdicts into rules a machine
-  applies, and here the rule is prose a person writes.
+  applies, and here the rule is prose a person writes. Its reader follows
+  `STUDIO_PROVIDER` for the reason `reviewed --facts` does (STU-2088).
 - `email_classifier/pilot_gate.py` + `scripts/pilot_gate.py`: a deployment's three exit
   conditions, read from artifacts rather than from an impression (STU-1242): a week of
   unattended live rounds, no PII leak, and an accepted-draft ratio the audit records. The
