@@ -8,7 +8,7 @@ version: 1
 #   studio replay <run-id> --restart --stage apply
 # (run ids: `studio status`). A failed child fails the run — RALPH retries live
 # inside each child's stages, so there is no outer retry loop. The one exception
-# is the drafts child, which is tolerated (see below).
+# are the drafts and calendar children, which are tolerated (see below).
 stages:
   - call: fetch
 
@@ -47,3 +47,12 @@ stages:
       corpus: "{{stages.fetch.output.dump_path}}"
       report: "{{stages.classify-batch.output.report_path}}"
       provider: "{{input.provider}}"
+
+  # Appointments read out of the classified mail and planned as calendar events
+  # (STU-2089). Tolerated like `drafts` for the same reason, and a no-op on a policy
+  # with no `calendar:` block. It plans and writes no calendar.
+  - call: calendar
+    on_failure: continue
+    input:
+      corpus: "{{stages.fetch.output.dump_path}}"
+      report: "{{stages.classify-batch.output.report_path}}"

@@ -1,0 +1,11 @@
+name: calendar-post
+version: 1
+
+schema:
+  required_fields:
+    - run_id
+    - planned
+    - review
+    - failed
+    - plan
+    - events_path
