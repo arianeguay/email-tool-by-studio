@@ -1828,7 +1828,8 @@ Consequences, each one tested:
 - `email_classifier/calendar_plan.py` + `scripts/calendar_pre.py` /
   `scripts/calendar_post.py`: appointments read out of classified mail and planned as
   calendar events (STU-2089), the `calendar` child of `mailbox-full`, a no-op unless the
-  policy carries a `calendar:` block (`subtypes`, `entity`, `timezone`, `default_minutes`).
+  policy carries a `calendar:` block (`subtypes`, `rules`, `entity`, `timezone`,
+  `default_minutes`).
   The pre-stage selects the report rows whose subtype is listed, minus the message ids
   either journal already holds, tokenized with the batch keymap; the
   `appointment-extract` agent reports the date and wall-clock times as written and the
@@ -1839,8 +1840,9 @@ Consequences, each one tested:
   plan. `logs/calendar/events.jsonl` is append-only, keyed `ref:<booking reference>` or
   `msg:<message id>`, last row wins; a reschedule or cancellation finds its event by
   reference, then by sender domain and previous start, and more than one candidate is a
-  review, not a pick. Only subtypes count, so a deterministic verdict (which carries
-  none) is never selected. `email_classifier/apply/home_assistant.py` writes the plan
+  review, not a pick. A deterministic verdict carries no subtype, so it is selected only
+  when `rules` lists the id of the rule that decided it (STU-2102); calendar-pre refuses
+  an id no deciding rule has. `email_classifier/apply/home_assistant.py` writes the plan
   (STU-2090) under the `apply` flag the mailbox writes take: every `planned` row no later
   `applied` or `failed` row of its key settled, so what a dry run planned is written by
   the next run that may write (the planner never reads that message again). A dry run

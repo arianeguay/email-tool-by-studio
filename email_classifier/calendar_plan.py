@@ -27,6 +27,8 @@ from email_classifier.stage1.policy import CalendarPolicy
 DEFAULT_PATHS = {
     "policy": "rules/policy.yaml",
     "taxonomy": "rules/taxonomy.yaml",
+    "rules": "rules/rules.yaml",
+    "learned": "rules/learned.yaml",
     "keymap": "logs/anonymization/keymap.json",
     "events": "logs/calendar/events.jsonl",
     "review": "logs/calendar/review.jsonl",
@@ -84,10 +86,13 @@ def handled_message_ids(*journals: list[dict]) -> set[str]:
     return {row["message_id"] for rows in journals for row in rows if row.get("message_id")}
 
 
-def targets(report: dict, subtypes: tuple[str, ...], handled: set[str]) -> list[str]:
+def targets(report: dict, subtypes: tuple[str, ...], handled: set[str],
+            rules: tuple[str, ...] = ()) -> list[str]:
     """Message ids to extract, oldest first so a reschedule follows what it moves."""
     rows = [v for v in report.get("verdicts", [])
-            if v.get("status") == "ok" and v.get("subtype") in subtypes
+            if v.get("status") == "ok"
+            and (v.get("subtype") in subtypes
+                 or (v.get("path") == "deterministic" and v.get("rule_id") in rules))
             and v["message_id"] not in handled]
     return [v["message_id"] for v in sorted(rows, key=lambda v: v.get("date") or "")]
 

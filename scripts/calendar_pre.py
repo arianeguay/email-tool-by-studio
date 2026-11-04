@@ -4,7 +4,8 @@
 Script executor interface: reads JSON from stdin, writes JSON to stdout.
 
 A policy with no `calendar:` block hands the fan-out nothing, so the child is a no-op.
-Otherwise the report rows whose subtype the block lists, minus the message ids
+Otherwise the report rows whose subtype the block lists, or whose deciding stage-1
+rule its `rules` names, minus the message ids
 `logs/calendar/events.jsonl` or `logs/calendar/review.jsonl` already hold, are tokenized
 with the batch keymap like `drafts-pre` does, so a person keeps the token the
 classification stage gave them.
@@ -31,6 +32,7 @@ from email_classifier.eval.harness import load_corpus
 from email_classifier.orchestrate.pipeline import dedupe_by_message
 from email_classifier.providers import can_draft, get_body_fetcher
 from email_classifier.stage1.policy import load_policy
+from email_classifier.stage1.rule_engine import load_rules
 
 REPO_ROOT = deployment.ROOT
 _ITEM_FIELDS = ("message_id", "thread_id", "from_address", "subject", "date")
@@ -82,10 +84,18 @@ def main() -> None:
             raise SystemExit(
                 f"[ERROR] calendar.subtypes names {sorted(unknown)}, which the taxonomy "
                 "does not have: those rows can never be selected")
+        if calendar.rules:
+            # The catch-all is last and only escalates, so it decides nothing to select.
+            decided = {r.id for r in load_rules(Path(paths["rules"]), Path(paths["learned"]))[:-1]}
+            unknown = set(calendar.rules) - decided
+            if unknown:
+                raise SystemExit(
+                    f"[ERROR] calendar.rules names {sorted(unknown)}, which no deciding rule "
+                    "has: those rows can never be selected")
         handled = calendar_plan.handled_message_ids(
             calendar_plan.read_rows(Path(paths["events"])),
             calendar_plan.read_rows(Path(paths["review"])))
-        every = calendar_plan.targets(report, calendar.subtypes, set())
+        every = calendar_plan.targets(report, calendar.subtypes, set(), calendar.rules)
         ids = [message_id for message_id in every if message_id not in handled]
         selected, handled_count = len(every), len(every) - len(ids)
         emails = {e.message_id: e

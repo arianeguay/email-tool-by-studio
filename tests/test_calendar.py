@@ -14,6 +14,7 @@ from tests.conftest import stub_detector
 from tests.test_mailbox_full import load_script
 
 TAXONOMY = Path(__file__).resolve().parents[1] / "reference-deployment" / "rules" / "taxonomy.yaml"
+RULES = TAXONOMY.with_name("rules.yaml")
 CAL = CalendarPolicy(subtypes=("recital_confirmation",), entity="calendar.studio",
                      timezone="America/Toronto", default_minutes=60)
 BODY = "Bonjour, votre essai est confirmé pour le mercredi 4 novembre à 14h00. Réf. AB-1207."
@@ -69,6 +70,8 @@ def test_the_block_inherits_the_policy_clock_and_an_hour(tmp_path):
     ({"entity": "calendar.studio"}, "subtypes"),
     ({"subtypes": [], "entity": "calendar.studio"}, "subtypes"),
     ({"subtypes": ["x"]}, "entity"),
+    ({"subtypes": ["x"], "entity": "calendar.studio", "rules": "physio"}, "rules"),
+    ({"subtypes": ["x"], "entity": "calendar.studio", "rules": [""]}, "rules"),
     ({"subtypes": ["x"], "entity": "calendar.studio", "default_minutes": 0}, "default_minutes"),
     ({"subtypes": ["x"], "entity": "calendar.studio", "default_minutes": True}, "default_minutes"),
     ({"subtypes": ["x"], "entity": "calendar.studio", "timezone": "Mars/Base"}, "timezone"),
@@ -90,11 +93,26 @@ REPORT = {"run_id": "run-1", "verdicts": [
     {"message_id": "broken", "status": "error", "subtype": None, "date": "2026-10-20"},
     {"message_id": "done", "status": "ok", "subtype": "recital_confirmation",
      "date": "2026-10-19"},
+    {"message_id": "ruled", "status": "ok", "path": "deterministic", "subtype": None,
+     "rule_id": "tuition_processor_receipt", "date": "2026-10-22T10:00:00+00:00"},
+    {"message_id": "unrelated", "status": "ok", "path": "deterministic", "subtype": None,
+     "rule_id": "cantabile_newsletter_archive", "date": "2026-10-22T11:00:00+00:00"},
 ]}
 
 
 def test_targets_are_listed_subtypes_oldest_first_minus_the_handled():
     assert cp.targets(REPORT, CAL.subtypes, {"done"}) == ["early", "late"]
+
+
+def test_a_listed_rule_selects_the_row_it_decided_and_no_other():
+    assert cp.targets(REPORT, CAL.subtypes, {"done"}, ("tuition_processor_receipt",)) == [
+        "early", "late", "ruled"]
+
+
+def test_a_listed_rule_does_not_select_an_llm_row_it_escalated():
+    report = {"verdicts": [{"message_id": "llm", "status": "ok", "path": "llm",
+                            "subtype": "newsletter", "rule_id": "catch_all", "date": ""}]}
+    assert cp.targets(report, CAL.subtypes, set(), ("catch_all",)) == []
 
 
 def test_both_journals_count_as_handled():
@@ -119,6 +137,7 @@ def run_pre(tmp_path, monkeypatch, capsys, calendar):
         [_email(v["message_id"], v["date"]) for v in REPORT["verdicts"]]), encoding="utf-8")
     ctx = {"corpus": str(tmp_path / "corpus.json"), "report": str(tmp_path / "report.json"),
            "policy": str(write_policy(tmp_path, calendar)), "taxonomy": str(TAXONOMY),
+           "rules": str(RULES), "learned": str(tmp_path / "learned.yaml"),
            "keymap": str(tmp_path / "anon" / "keymap.json"),
            "events": str(tmp_path / "cal" / "events.jsonl"),
            "review": str(tmp_path / "cal" / "review.jsonl")}
@@ -141,6 +160,21 @@ def test_pre_skips_the_journaled_message_and_tokenizes_the_rest(tmp_path, monkey
     assert out["already_handled"] == 1
     assert out["pending"][0]["from_address"].startswith("EMAIL_")
     assert out["pending"][0]["body_text"] == BODY
+
+
+def test_pre_selects_the_row_a_listed_rule_decided(tmp_path, monkeypatch, capsys):
+    out = run_pre(tmp_path, monkeypatch, capsys,
+                  {"subtypes": ["recital_confirmation"], "entity": "calendar.studio",
+                   "rules": ["tuition_processor_receipt"]})
+    assert [i["message_id"] for i in out["pending"]] == ["early", "late", "ruled"]
+
+
+@pytest.mark.parametrize("rule", ["dentist_rule", "catch_all"])
+def test_pre_refuses_a_rule_that_decides_nothing(tmp_path, monkeypatch, capsys, rule):
+    with pytest.raises(SystemExit, match="calendar.rules"):
+        run_pre(tmp_path, monkeypatch, capsys,
+                {"subtypes": ["recital_confirmation"], "entity": "calendar.studio",
+                 "rules": [rule]})
 
 
 def test_pre_refuses_a_subtype_the_taxonomy_lacks(tmp_path, monkeypatch, capsys):
