@@ -151,3 +151,14 @@ def test_the_command_pairs_the_window_and_keeps_only_redacted_text(monkeypatch, 
     assert (record["paired"], record["corrected"]) == (3, 2)
     assert [p["thread_id"] for p in record["candidates"][0]["pairs"]] == ["T1", "T2"]
     assert "example.org" not in seen[0] and "example.org" not in out.read_text()
+
+
+def test_the_command_runs_on_the_hosts_provider(monkeypatch):
+    """STU-2088: the reader reads real mail, so it follows `STUDIO_PROVIDER`."""
+    from scripts import correction_rules as cli
+
+    monkeypatch.setenv("STUDIO_PROVIDER", "claude-code")
+    assert cli.parse_args([]).provider == "claude-code"
+    assert cli.parse_args(["--provider", "mock"]).provider == "mock"
+    monkeypatch.delenv("STUDIO_PROVIDER")
+    assert cli.parse_args([]).provider == correction_rules.DEFAULT_PROVIDER

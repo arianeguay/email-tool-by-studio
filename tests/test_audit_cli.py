@@ -1296,6 +1296,32 @@ def test_reviewed_reads_facts_only_when_asked(monkeypatch, tmp_path, capsys):
         {"verdict": "contradicted", "contradicted": ["can still register"]}]
 
 
+def test_reviewed_reads_facts_on_the_hosts_provider(monkeypatch, tmp_path, capsys):
+    """STU-2088: a host on `claude-code` with no API key failed every read under the
+    reader's `anthropic` default. The host's provider wins, and `--provider` over it."""
+    from email_classifier import fact_read, providers
+
+    mailbox = _Mailbox()
+    monkeypatch.setattr(providers, "get_thread_reader", lambda provider: mailbox)
+    monkeypatch.setattr(providers, "get_drafter", lambda provider: mailbox)
+    used = []
+
+    def read(thread_id, draft_body, sent_body, cwd, provider=None):
+        used.append(provider)
+        return {"verdict": "kept", "contradicted": []}
+
+    monkeypatch.setattr(fact_read, "read", read)
+    monkeypatch.setenv("STUDIO_PROVIDER", "claude-code")
+    extra = ["--studio-log", str(_two_draft_journal(tmp_path)),
+             "--draft-journal", str(_draft_journal(tmp_path, "T1", "T2")), "--facts"]
+
+    _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(), extra=extra)
+    _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),
+         extra=[*extra, "--provider", "mock"])
+    capsys.readouterr()
+    assert used == ["claude-code", "mock"]
+
+
 def test_reviewed_refuses_without_the_drafts_journal(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as exc:
         _run(monkeypatch, tmp_path, "reviewed", _one_verdict_report(),

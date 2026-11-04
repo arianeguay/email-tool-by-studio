@@ -303,7 +303,7 @@ pilot-delta:         ## Draft-versus-sent across the whole pilot, cohorted by se
 
 correction-rules:    ## Candidate drafting rules from the reviewer's corrections over a window (STU-1108)
 	$(PYTHON) scripts/correction_rules.py $(if $(REPORTS),--reports $(REPORTS)) \
-		$(if $(RUNS_DIR),--runs-dir $(RUNS_DIR)) $(PROVIDER_FLAG)
+		$(if $(RUNS_DIR),--runs-dir $(RUNS_DIR)) $(LIVE_PROVIDER_FLAG)
 
 pilot-gate:          ## Read the three V1 exit conditions off the window's artifacts (STU-1242)
 	$(PYTHON) scripts/pilot_gate.py $(if $(REPORTS),--reports $(REPORTS)) \

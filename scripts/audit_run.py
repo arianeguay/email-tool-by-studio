@@ -83,6 +83,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -798,7 +799,8 @@ def _reviewed(args, report_path: Path, report: dict) -> int:
     if args.facts:
         from email_classifier import fact_read
         # Lexical bands stay in `by_outcome`; this is the reading an audit quotes.
-        summary["by_facts"] = fact_read.annotate(rows, drafted, sent_bodies, Path.cwd())
+        summary["by_facts"] = fact_read.annotate(rows, drafted, sent_bodies, Path.cwd(),
+                                                  args.provider or fact_read.DEFAULT_PROVIDER)
     rows += [{"thread_id": t, "outcome": UNMATCHED_ITEM} for t in sorted(unmatched)]
     rows += [{"thread_id": t, "outcome": NO_WRITE_TIME} for t in sorted(untimed)]
 
@@ -942,6 +944,10 @@ def main() -> int:
     parser.add_argument("--facts", action="store_true",
                         help="reviewed: ask the draft-facts reader whether each sent reply "
                              "kept, extended or contradicted the draft (live LLM calls)")
+    # The reader reads real mail, so it runs where the host runs (STU-1128, STU-2088).
+    parser.add_argument("--provider", default=os.environ.get("STUDIO_PROVIDER") or None,
+                        help="reviewed --facts: the reader's provider "
+                             "(default: STUDIO_PROVIDER, else the reader's own default)")
     args = parser.parse_args()
 
     # `--run` is top-level and only two subcommands read it, so anywhere else it was
