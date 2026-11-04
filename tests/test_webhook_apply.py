@@ -94,7 +94,7 @@ def test_auto_apply_labels_and_archives_end_to_end(tmp_path):
 
     _notify(tmp_path, writer, auto_apply=True)
 
-    assert writer.labels_of("m1") == {"ec/C", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/C", PROCESSED_LABEL}
     run_id = _run_id(tmp_path)
     assert _journals(tmp_path) == [f"{run_id}.jsonl"]
 
@@ -118,7 +118,7 @@ def test_a_forbidden_destructive_verdict_is_downgraded_not_trashed(tmp_path):
     _notify(tmp_path, writer, auto_apply=True, action="mark_for_delete", destructive=[])
 
     assert writer.trashed == []
-    assert writer.labels_of("m1") == {"ec/C", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/C", PROCESSED_LABEL}
 
 
 def test_a_redelivered_notification_does_not_act_twice(tmp_path):
@@ -201,7 +201,7 @@ def test_a_reply_reconciles_the_thread_an_earlier_run_archived(tmp_path):
     })
 
     _thread_notify(tmp_path / "run1", writer, session, "opener")
-    assert writer.labels_of("opener") == {"ec/C", PROCESSED_LABEL}
+    assert writer.labels_of("opener") == {"email-tool/C", PROCESSED_LABEL}
 
     # The reply lands after the first run, on the same conversation.
     session.by_id["reply"] = _raw_message(
@@ -219,7 +219,7 @@ def test_a_reply_reconciles_the_thread_an_earlier_run_archived(tmp_path):
         writer,
         ApplyJournal(tmp_path / "undo.jsonl", "undo"),
     )
-    assert writer.labels_of("opener") == {"ec/C", PROCESSED_LABEL}
+    assert writer.labels_of("opener") == {"email-tool/C", PROCESSED_LABEL}
     assert writer.labels_of("reply") == {"INBOX"}
 
 

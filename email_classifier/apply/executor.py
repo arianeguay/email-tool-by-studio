@@ -7,7 +7,7 @@ move is not — a thread applied message by message ends up split between the In
 the Archive, and the second apply moves a message out from under the first.
 
 Mapping: keep_visible / needs_reply -> no mailbox change; label_archive ->
-ensure "ec/<bucket>" label, add it, remove INBOX; mark_for_delete -> trash,
+ensure "email-tool/<bucket>" label, add it, remove INBOX; mark_for_delete -> trash,
 but only when the policy allows it — otherwise downgraded to archive here,
 even if the report was produced under a more permissive policy.
 
@@ -21,9 +21,9 @@ Dry-run is the default (STU-407): the plan is journaled, no mutation call is
 issued. Real mutations require dry_run=False, i.e. an explicit `--apply`.
 
 Idempotence is a state diff, not a marker test (STU-963). Every applied message
-still gets the "ec/processed" marker, added AFTER the operation — a failure
+still gets the "email-tool/processed" marker, added AFTER the operation — a failure
 before it means retry next run, the reverse would silently drop the message —
-but what decides whether to act is the `ec/<bucket>` the message already carries
+but what decides whether to act is the `email-tool/<bucket>` the message already carries
 against the one the verdict now asks for. Equal means converged, and a marked
 message with nothing left to do is skipped exactly as before. Different means a
 later run corrects an earlier one's work, in both directions: `unarchive` puts a
@@ -37,7 +37,7 @@ label without the move, which the next run would read as converged and strand in
 the Inbox forever.
 
 That is also what leaves a human's own move standing. Only this app writes
-`ec/<bucket>`, so dragging an archived message back to the Inbox does not remove
+`email-tool/<bucket>`, so dragging an archived message back to the Inbox does not remove
 it; the verdict still matches, the message reads as converged, and nothing
 touches it. A verdict that genuinely changed does override the move, message and
 folder both — which is the case where acting is the point.
@@ -46,8 +46,8 @@ The trash is the third location on that same axis (STU-983), not an exception to
 it: `label_ids` reports `TRASH` the way it reports `INBOX`, so a conversation that
 a reply reconciles back to A or B untrashes the half an earlier run threw out.
 
-Which half is ours needs its own record, and gets one — `ec/deleted`, written
-before the move. `ec/<bucket>` says where we filed a message; nothing said we had
+Which half is ours needs its own record, and gets one — `email-tool/deleted`, written
+before the move. `email-tool/<bucket>` says where we filed a message; nothing said we had
 thrown one out, and no location label can say who did. Nor can it be inferred from
 the absence of a bucket: an applied keep_visible leaves a message marked and
 unbucketed too, so that test would read every message a human deletes after we
@@ -64,7 +64,7 @@ human filed it to. `label_ids` reports that as `ELSEWHERE` and the message is
 skipped, marker included. Without it a report outliving its mail read as a live
 message that merely already sat outside the Inbox, so `make apply RUN_ID=<older
 run>` — a rollback, a retry — planned an archive with no move, stamped
-`ec/<bucket>` onto mail in the dumpster, and journalled every operation `ok`.
+`email-tool/<bucket>` onto mail in the dumpster, and journalled every operation `ok`.
 
 Fetching is what makes any of this reachable: the conversation is the unit within
 one report, so a report has to hold the whole thread. `fetch/threads.py` widens
@@ -83,6 +83,7 @@ from email_classifier.orchestrate import conversation
 from email_classifier.orchestrate.conversation import ThreadVerdict
 from email_classifier.orchestrate.report import EmailVerdict
 from email_classifier.providers import (
+    bucket_label,
     DELETED_LABEL,
     ELSEWHERE_LABEL as _ELSEWHERE,
     INBOX_LABEL as _INBOX,
@@ -120,7 +121,7 @@ def plan_operations(
 ) -> tuple[str, list[Operation]]:
     """One message's operations under its conversation's verdict. Pure — no I/O.
 
-    `applied_bucket` is the `ec/<bucket>` the message already carries, None when it
+    `applied_bucket` is the `email-tool/<bucket>` the message already carries, None when it
     carries none; `in_inbox` and `in_trash` are where it currently sits. Only this
     app writes those labels, so one is the record of what we last did — and the
     operation order below is what keeps that record honest at every point a run can
@@ -133,12 +134,12 @@ def plan_operations(
     operation used to exist for.
 
     Reading the label rather than a stored history is also what keeps a human's own
-    move: dragging an archived message back to the Inbox leaves `ec/C` on it, so an
+    move: dragging an archived message back to the Inbox leaves `email-tool/C` on it, so an
     unchanged verdict reads as converged and nothing touches it. Only a verdict that
     actually changed overrides a human — and then it moves the message too, which is
     what `in_inbox` is read for.
 
-    The trash is the third location, and `applied_deleted` — the `ec/deleted` label
+    The trash is the third location, and `applied_deleted` — the `email-tool/deleted` label
     — is its half of the record (STU-983). It has to be written rather than
     inferred: a trashed message may carry no bucket, but so does every message
     applied as keep_visible, so "marked and unbucketed" cannot tell our own trash
@@ -173,7 +174,7 @@ def plan_operations(
 
     # Bucket off before any move: it says where we filed the message, and a message
     # on its way out of the Archive is no longer filed anywhere.
-    unlabel = [Operation("remove_label", f"ec/{applied_bucket}")] if applied_bucket else []
+    unlabel = [Operation("remove_label", bucket_label(applied_bucket))] if applied_bucket else []
     our_trash = in_trash and applied_deleted
 
     if action == "mark_for_delete":
@@ -190,7 +191,7 @@ def plan_operations(
     # Where `untrash` lands is provider-specific — Gmail restores the labels the
     # message had before the trash, Outlook always moves to the Inbox — so a plan
     # coming out of the trash states its destination rather than inheriting one.
-    # `ec/deleted` comes off after the move, so a crash leaves the message out of
+    # `email-tool/deleted` comes off after the move, so a crash leaves the message out of
     # the trash still carrying it: protected rather than silently re-deletable.
     restore = (
         [Operation("untrash"), Operation("remove_label", DELETED_LABEL)]
@@ -205,7 +206,7 @@ def plan_operations(
             *unlabel,
             *restore,
             *([Operation("remove_label", _INBOX)] if leaves_inbox else []),
-            Operation("add_label", f"ec/{decision.bucket}"),
+            Operation("add_label", bucket_label(decision.bucket)),
         ]
     if applied_bucket is None and not our_trash:
         return "none", []
@@ -243,7 +244,7 @@ def apply_verdicts(
     bucket_of = {
         found: bucket
         for bucket in taxonomy.buckets
-        if (found := writer.find_label(f"ec/{bucket}")) is not None
+        if (found := writer.find_label(bucket_label(bucket))) is not None
     }
     deleted_id = writer.find_label(DELETED_LABEL)
 
@@ -317,7 +318,7 @@ def apply_verdicts(
                 # A converged message is done. The trash is no longer an exception:
                 # `label_ids` reports it, so a trashed message diffs like any other.
                 #
-                # Trashing one included: `ec/deleted` records that, so a message
+                # Trashing one included: `email-tool/deleted` records that, so a message
                 # somebody put back reads as converged rather than as one to throw
                 # out again.
                 if processed and not operations:

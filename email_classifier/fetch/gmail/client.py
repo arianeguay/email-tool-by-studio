@@ -239,7 +239,7 @@ class GmailFetcher:
 
     def _name_of(self, label_ids: list[str]) -> set[str]:
         """Label names for ids. Gmail reports ids; only the system ones are their
-        own name, and `ec/processed` is not a system label. Listed once per
+        own name, and `email-tool/processed` is not a system label. Listed once per
         fetcher — the names do not change under a run."""
         if self._label_names is None:
             listed = self._service.users().labels().list(userId="me").execute()
@@ -252,7 +252,7 @@ class GmailFetcher:
         """Whether the mailbox still shows this message as live incoming mail.
 
         TRASH is the one `_NOT_INCOMING` label that can be ours (STU-983): a
-        message carrying `ec/deleted` is one this app threw out, and it comes back
+        message carrying `email-tool/deleted` is one this app threw out, and it comes back
         when a reply reconciles the conversation to a live bucket.
         """
         blocking = _NOT_INCOMING & set(label_ids)
@@ -318,7 +318,7 @@ class GmailFetcher:
 
         TRASH is dropped on the same reasoning but not the same test (STU-983):
         "somebody threw it out" is only true of a message *we* did not trash, and
-        our own says so on itself — `ec/deleted`, which `trashed_by_us` reads. Those
+        our own says so on itself — `email-tool/deleted`, which `trashed_by_us` reads. Those
         come back: a reply can reconcile the conversation to a live bucket, and
         untrashing the half an earlier run threw out is what closes the split. A
         message a human deleted carries no such label and never re-enters — it would

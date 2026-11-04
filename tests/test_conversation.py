@@ -136,7 +136,7 @@ def test_one_undecided_message_leaves_the_whole_conversation_undecided(undecided
 
 @pytest.mark.parametrize("bucket", [None, "newsletter"], ids=["none", "off-taxonomy"])
 def test_an_action_with_no_taxonomy_bucket_raises_rather_than_holding_forever(bucket):
-    """`ec/<bucket>` and the taxonomy are one vocabulary. Held for review instead, this
+    """`email-tool/<bucket>` and the taxonomy are one vocabulary. Held for review instead, this
     would be held every run, and the run before it wrote no junk label to say why."""
     with pytest.raises(ValueError, match="is not one of A, B, C, D"):
         reconcile(verdict("m1", "2026-08-18", bucket, "label_archive"))

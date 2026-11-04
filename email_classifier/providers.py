@@ -19,7 +19,7 @@ Ontology mapping — how a neutral operation lands on each provider:
 The asymmetry that shapes the interface: Gmail labels are many-per-message and
 orthogonal to location, Outlook folders are one-per-message. So "label" maps to
 Outlook *categories*, not folders — categories are many-per-message, which is
-what `ec/<bucket>` + `ec/processed` need. Archiving is then a separate folder
+what `email-tool/<bucket>` + `email-tool/processed` need. Archiving is then a separate folder
 move, which is why the executor's archive step is label+unlabel-INBOX in Gmail
 terms: the Outlook writer implements `remove_label("INBOX")` as a folder move.
 
@@ -51,16 +51,25 @@ TRASH_LABEL = "TRASH"
 # and a message it no longer holds answers 404 rather than a location.
 ELSEWHERE_LABEL = "ELSEWHERE"
 
-# What this app writes on a message it has acted on. Only this app writes the
-# `ec/` prefix, which is what makes these labels a record rather than a guess.
-PROCESSED_LABEL = "ec/processed"
+# Every label this app writes starts here. Only this app writes the prefix, which
+# is what makes these labels a record rather than a guess. Spelled out for the
+# reviewer who reads it in the mailbox (STU-2099), and ASCII so IMAP can carry it.
+LABEL_PREFIX = "email-tool/"
+
+
+def bucket_label(bucket: str) -> str:
+    return f"{LABEL_PREFIX}{bucket}"
+
+
+# What this app writes on a message it has acted on.
+PROCESSED_LABEL = f"{LABEL_PREFIX}processed"
 
 # The record that this app moved a message to the trash (STU-983), written before
-# the move. `ec/<bucket>` says "we filed it here"; nothing said "we threw it out",
+# the move. `email-tool/<bucket>` says "we filed it here"; nothing said "we threw it out",
 # and no location label can — a label reports *that* a message is in the trash,
 # never *who* put it there. Inferring it from the absence of a bucket does not
 # work: that is also the state of every message applied as keep_visible.
-DELETED_LABEL = "ec/deleted"
+DELETED_LABEL = f"{LABEL_PREFIX}deleted"
 
 
 def trashed_by_us(labels: Iterable[str]) -> bool:

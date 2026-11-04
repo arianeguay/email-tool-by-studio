@@ -60,7 +60,7 @@ class _Threads:
 class _Labels:
     """`labels().list`, the id -> name map `conversation_message_ids` reads the
     marker through (STU-983). Ids are deliberately not the names: only Gmail's
-    system labels are their own id, and `ec/processed` is not one."""
+    system labels are their own id, and `email-tool/processed` is not one."""
 
     def __init__(self, names):
         self._names = names
@@ -397,12 +397,12 @@ def test_the_guard_leaves_a_working_call_alone(stub_refresh_error):
 #
 # "Somebody threw it out" is only true of a message we did not trash ourselves.
 # Our own is the marker with no bucket label: apply trashes straight out of the
-# Inbox and strips any ec/<bucket> first, so a bucket in the trash means a human
+# Inbox and strips any email-tool/<bucket> first, so a bucket in the trash means a human
 # moved on from a message we had filed in the Archive.
 
 _MARKER = "Label_7"
 _DELETED = "Label_9"
-_LABEL_NAMES = {_MARKER: "ec/processed", _DELETED: "ec/deleted"}
+_LABEL_NAMES = {_MARKER: "email-tool/processed", _DELETED: "email-tool/deleted"}
 
 
 def _trashed_thread(labels):
@@ -425,7 +425,7 @@ def test_a_message_this_app_trashed_rejoins_its_conversation():
         # Never processed by this app: a human's deletion, start to finish.
         ["TRASH"],
         # Processed — but as keep_visible, which leaves exactly this state. Only
-        # `ec/deleted` separates it from a message this app threw out.
+        # `email-tool/deleted` separates it from a message this app threw out.
         ["TRASH", _MARKER],
     ],
 )
@@ -471,7 +471,7 @@ def test_a_trashed_sibling_survives_the_fetch_that_reads_it_back():
 
 def test_a_message_a_human_deleted_is_dropped_by_the_read_back_too():
     """The window STU-993 closed is still closed: an id named by a notification whose
-    message a human threw out in the meantime carries no `ec/deleted`."""
+    message a human threw out in the meantime carries no `email-tool/deleted`."""
     service = _trashed_thread(["TRASH", _MARKER])
 
     inputs = gmail.GmailFetcher(service).fetch_inputs_by_ids(["a", "b"])

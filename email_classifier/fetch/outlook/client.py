@@ -653,7 +653,7 @@ class OutlookFetcher:
         Deleted Items takes the same exemption it takes at the listing (STU-983):
         this is the call `threads.py` fetches a conversation's missing half with,
         so a blanket drop here would take back exactly what
-        `conversation_message_ids` just offered. `ec/deleted` is what separates the
+        `conversation_message_ids` just offered. `email-tool/deleted` is what separates the
         two — the window this guard exists for is a *human* throwing mail out, and
         `trashed_by_us` is false for that.
 
@@ -976,7 +976,7 @@ class OutlookFetcher:
 
         Deleted Items is dropped on the same reasoning but not the same test
         (STU-983): "somebody threw it out" is only true of a message *we* did not
-        trash, and our own says so on itself — `ec/deleted`, which `trashed_by_us`
+        trash, and our own says so on itself — `email-tool/deleted`, which `trashed_by_us`
         reads. Those come back: a reply can reconcile the conversation to a live
         bucket, and untrashing the half an earlier run threw out is what closes the
         split. A message a human deleted carries no such category and never

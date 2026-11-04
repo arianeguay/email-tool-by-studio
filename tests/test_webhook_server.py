@@ -50,11 +50,11 @@ class FakeThreads:
 
 class FakeLabels:
     """`labels().list`, the id -> name map the trash exemption reads the marker
-    through (STU-983). This fake has no `ec/deleted`, so every trashed message it
+    through (STU-983). This fake has no `email-tool/deleted`, so every trashed message it
     serves is one a human threw out."""
 
     def list(self, **_kwargs):
-        return _Call({"labels": [{"id": "Label_7", "name": "ec/processed"}]})
+        return _Call({"labels": [{"id": "Label_7", "name": "email-tool/processed"}]})
 
 
 def _raw_message(message_id, from_address="stranger@unknown-domain.test"):

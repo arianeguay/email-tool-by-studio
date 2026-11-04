@@ -4,7 +4,7 @@ Mirror of `apply/gmail/writer.py`, against a vocabulary that does not line up
 one-for-one (see the ontology table in `providers.py`):
 
 * a neutral label is an Outlook **category**: many-per-message and orthogonal to
-  location, which is what `ec/<bucket>` plus `ec/processed` need. Folders are
+  location, which is what `email-tool/<bucket>` plus `email-tool/processed` need. Folders are
   one-per-message and could not hold both.
 * `INBOX` and `TRASH` are not labels but the message's folder, so the executor's
   "remove INBOX" archive step is a move to the Archive folder, and its inverse a
@@ -110,7 +110,7 @@ class OutlookWriter:
         And a folder outside the table answers `ELSEWHERE` (STU-1075). Returning
         the categories alone said "not in the Inbox", which the executor reads as
         an archived message it may still act on — so a report outliving its mail
-        planned an archive with no move and stamped `ec/<bucket>` onto messages in
+        planned an archive with no move and stamped `email-tool/<bucket>` onto messages in
         the Deletions dumpster, every operation journalled `ok`. The folder axis
         has three answers, not two, and this is where it is read.
         """

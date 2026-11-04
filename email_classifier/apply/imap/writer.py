@@ -1,7 +1,7 @@
 """IMAP mutation primitives (STU-2054), mirroring `apply/outlook/writer.py`.
 
 A neutral label is an IMAP **keyword**: many-per-message and orthogonal to
-location, as `ec/<bucket>` plus `ec/processed` need. `INBOX` and `TRASH` are the
+location, as `email-tool/<bucket>` plus `email-tool/processed` need. `INBOX` and `TRASH` are the
 message's folder, so archiving is a `MOVE` to the `\\Archive` folder and its
 inverse a move back. Trash is a move to `\\Trash`, never an expunge.
 

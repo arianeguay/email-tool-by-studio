@@ -222,7 +222,7 @@ def test_fetching_never_marks_a_message_seen(imap):
 def test_a_conversation_keeps_our_own_trash_and_drops_a_humans(imap):
     imap.add("INBOX", _mail("root"))
     imap.add("Archive", _mail("m2", refs=["root"]))
-    imap.add("Trash", _mail("m3", refs=["root"]), flags=["ec/deleted"])
+    imap.add("Trash", _mail("m3", refs=["root"]), flags=["email-tool/deleted"])
     imap.add("Trash", _mail("m4", refs=["root"]))
     imap.add("Sent", _mail("m5", refs=["root"]))
 
@@ -273,13 +273,13 @@ def test_precedent_search_covers_sent_but_never_trash(imap):
 
 
 def test_label_ids_read_the_folder_on_the_label_axis(imap):
-    imap.add("INBOX", _mail("a"), flags=["\\Seen", "ec/C"])
+    imap.add("INBOX", _mail("a"), flags=["\\Seen", "email-tool/C"])
     imap.add("Archive", _mail("b"))
     imap.add("Trash", _mail("c"))
     imap.add("Factures", _mail("d"))
     writer = ImapWriter(_session(imap))
 
-    assert writer.label_ids("a") == ["ec/C", "INBOX"]
+    assert writer.label_ids("a") == ["email-tool/C", "INBOX"]
     assert writer.label_ids("b") == []
     assert writer.label_ids("c") == ["TRASH"]
     assert writer.label_ids("d") == ["ELSEWHERE"]
@@ -307,7 +307,7 @@ def test_archive_then_undo_round_trips_the_mailbox(imap, tmp_path):
 
     apply_verdicts([_verdict()], writer, _policy(), journal, TAXONOMY, dry_run=False)
     folder, message = imap.where("m1")
-    assert (folder, message["flags"]) == ("Archive", {"ec/C", "ec/processed"})
+    assert (folder, message["flags"]) == ("Archive", {"email-tool/C", "email-tool/processed"})
 
     undo_entries(read_entries(journal.path), writer, ApplyJournal(tmp_path / "u.jsonl", "run"))
     folder, message = imap.where("m1")
@@ -321,7 +321,7 @@ def test_trash_then_undo_round_trips_the_mailbox(imap, tmp_path):
 
     apply_verdicts([_verdict("mark_for_delete", "D")], writer, _policy(), journal, TAXONOMY, dry_run=False)
     assert imap.where("m1")[0] == "Trash"
-    assert "ec/deleted" in imap.where("m1")[1]["flags"]
+    assert "email-tool/deleted" in imap.where("m1")[1]["flags"]
 
     undo_entries(read_entries(journal.path), writer, ApplyJournal(tmp_path / "u.jsonl", "run"))
     folder, message = imap.where("m1")

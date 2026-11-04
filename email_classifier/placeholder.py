@@ -9,9 +9,10 @@ that still carries one.
 import unicodedata
 
 from email_classifier import alerts
+from email_classifier.providers import LABEL_PREFIX
 
 PLACEHOLDER_MARKER = "[À COMPLÉTER"
-PLACEHOLDER_CATEGORY = "ec/à-compléter"
+PLACEHOLDER_CATEGORY = f"{LABEL_PREFIX}à-compléter"
 
 
 def holds_placeholder(body: str) -> bool:
