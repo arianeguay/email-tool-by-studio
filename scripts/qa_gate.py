@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
 
     today = qa_gate.fingerprint(deployment_root, corpus)
     if args.check:
-        return qa_gate.check(today, record)
+        return qa_gate.check(today, record, deployment_root / "rules" / "policy.yaml")
 
     # The record names one corpus and `--corpus` names any, so a pass on another one
     # would replace a verified record with a measurement of something else. Refused the
