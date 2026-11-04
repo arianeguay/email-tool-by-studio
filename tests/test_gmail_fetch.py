@@ -488,3 +488,19 @@ def test_no_floor_leaves_the_query_alone():
     messages = _Messages([{"messages": []}], {})
     gmail.GmailFetcher(_Service(messages)).fetch_inputs(query="from:x", max_results=10)
     assert messages.list_queries == ["from:x"]
+
+
+def test_the_sent_source_lists_replies_to_a_correspondent_after_an_instant():
+    """STU-2082: an exact epoch bound, and Gmail's own date rather than the header's."""
+    raw = {"id": "s1", "internalDate": "1781254800000", "payload": {"headers": [
+        {"name": "Subject", "value": "RE: Horaire"},
+        {"name": "In-Reply-To", "value": "<m1>"},
+    ]}}
+    messages = _Messages([{"messages": [{"id": "s1"}]}], {"s1": raw})
+
+    sent = gmail.GmailSentSource(_Service(messages)).sent_to(
+        "parent@example.ca", "2026-06-12T08:15:00+00:00")
+
+    assert messages.list_queries == ["in:sent to:parent@example.ca after:1781252100"]
+    assert sent == [{"date": "2026-06-12T09:00:00+00:00", "subject": "RE: Horaire",
+                     "in_reply_to": "<m1>", "references": ""}]

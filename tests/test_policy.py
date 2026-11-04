@@ -240,3 +240,17 @@ def test_load_policy_rejects_an_unusable_auto_unsubscribe(tmp_path: Path, body: 
     policy_file.write_text(f"deterministic_can_finalize: true\n{body}")
     with pytest.raises(ValueError, match=error):
         load_policy(policy_file)
+
+
+def test_load_policy_reads_sent_sources_and_refuses_an_unknown_one(tmp_path: Path):
+    """STU-2082: an unknown source would fail at the first draft, after the spend."""
+    policy_file = tmp_path / "policy.yaml"
+    policy_file.write_text("deterministic_can_finalize: true\n")
+    assert load_policy(policy_file).sent_sources == []
+    policy_file.write_text(
+        "deterministic_can_finalize: true\nemail:\n  provider: imap\n  sent_sources: [gmail]\n")
+    assert load_policy(policy_file).sent_sources == ["gmail"]
+    policy_file.write_text(
+        "deterministic_can_finalize: true\nemail:\n  sent_sources: [hotmail]\n")
+    with pytest.raises(ValueError, match="sent_sources"):
+        load_policy(policy_file)

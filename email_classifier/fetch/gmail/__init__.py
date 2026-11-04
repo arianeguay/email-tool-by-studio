@@ -11,6 +11,7 @@ from email_classifier.fetch.gmail.client import (
     CONSENT_COMMAND,
     SCOPES,
     GmailFetcher,
+    GmailSentSource,
     GrantAware,
     build_service,
     get_credentials,
@@ -26,6 +27,7 @@ __all__ = [
     "get_credentials",
     "build_service",
     "GmailFetcher",
+    "GmailSentSource",
     "list_new_message_ids",
     "watch",
 ]

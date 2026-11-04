@@ -269,6 +269,15 @@ def configured_mailbox(provider: str) -> str | None:
     raise ValueError(f"no mailbox for email provider {provider!r}")
 
 
+def get_sent_source(name: str):
+    """A second mailbox's Sent folder, read only (STU-2082). Gmail is the only one."""
+    if name == "gmail":
+        from email_classifier.fetch import gmail
+
+        return gmail.GmailSentSource(_gmail_service())
+    raise ValueError(f"no sent source {name!r}")
+
+
 def get_fetcher(provider: str) -> Fetcher:
     if provider == "gmail":
         from email_classifier.fetch import gmail
