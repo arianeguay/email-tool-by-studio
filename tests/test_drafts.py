@@ -401,7 +401,7 @@ def run_write(module, tmp_path, body, monkeypatch, capsys, **overrides):
             "policy": str(overrides.get("policy") or write_policy(tmp_path)),
             "reply_to": overrides.get("reply_to", ""),
             "reply_name": overrides.get("reply_name", "")}
-    draft = {"thread_id": "t1", "draft_body": body, "confidence": "high",
+    draft = {"thread_id": overrides.get("draft_thread_id", "t1"), "draft_body": body, "confidence": "high",
              "sources_used": ["club:inscriptions"]}
     payload = {"additional_context": yaml.safe_dump(item),
                "previous_outputs": {"generate-draft": draft}}
@@ -438,6 +438,21 @@ def test_the_reviewer_reads_the_preimage_of_what_reached_the_mailbox(
     assert out["draft_body"] == "Bonjour PERSON_1."
     assert drafter.calls[0][2] == "Bonjour Marie Tremblay."
     assert out["sources_used"] == ["club:inscriptions"]
+
+
+def test_the_output_names_the_items_thread_not_the_models_copy(
+    write_draft, tmp_path, monkeypatch, capsys
+):
+    """STU-2074: a drafter that mis-copies the thread id would otherwise leave a
+    journal naming a conversation no `drafts-pre` item carries."""
+    drafter = FakeDrafter()
+    monkeypatch.setattr(write_draft, "get_drafter", lambda provider: drafter)
+
+    out = run_write(write_draft, tmp_path, "Bonjour.", monkeypatch, capsys,
+                    draft_thread_id="tl")
+
+    assert out["thread_id"] == "t1"
+    assert drafter.calls[0][1] == "t1"
 
 
 def test_the_stage_restores_the_parsed_recipient_before_the_mailbox(
