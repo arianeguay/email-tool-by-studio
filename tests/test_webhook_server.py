@@ -329,7 +329,7 @@ class _RefusingMessages:
     def get(self, **_kwargs):
         return self
 
-    def execute(self):
+    def execute(self, **_kwargs):
         raise _HttpError(401)
 
 

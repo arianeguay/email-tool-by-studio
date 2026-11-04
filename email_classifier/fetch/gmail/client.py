@@ -136,6 +136,12 @@ def _is_grant_refusal(exc) -> bool:
     return isinstance(exc, RefreshError)
 
 
+# googleapiclient backs off and retries a 429, a 5xx and a 403 `rateLimitExceeded`
+# on its own when asked; a thread expansion of 200 conversations trips the per-minute
+# quota and otherwise dies having written nothing (STU-2098). Never a 401.
+_RETRIES = 5
+
+
 def _guard(execute):
     """Wrap one `execute()` so a refused grant surfaces as `GrantLost` (STU-953).
 
@@ -145,6 +151,7 @@ def _guard(execute):
     """
 
     def guarded(*args, **kwargs):
+        kwargs.setdefault("num_retries", _RETRIES)
         try:
             return execute(*args, **kwargs)
         except Exception as exc:

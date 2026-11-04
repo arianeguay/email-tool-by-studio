@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from email_classifier import providers
+from email_classifier import deployment, providers
 from email_classifier.core import schema
 from email_classifier.fetch import window
 from email_classifier.fetch.threads import expand_to_conversations
@@ -47,8 +47,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--policy",
         type=Path,
-        default=Path("rules/policy.yaml"),
-        help="Policy file naming the run's date floor (default: rules/policy.yaml).",
+        default=deployment.ROOT / "rules" / "policy.yaml",
+        help="Policy file naming the run's date floor (default: the deployment's "
+             "rules/policy.yaml, under $EMAIL_CLASSIFIER_DEPLOYMENT_ROOT).",
     )
     return parser.parse_args(argv)
 

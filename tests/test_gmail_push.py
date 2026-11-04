@@ -7,7 +7,7 @@ class _Call:
     def __init__(self, result):
         self._result = result
 
-    def execute(self):
+    def execute(self, **_kwargs):
         if isinstance(self._result, Exception):
             raise self._result
         return self._result

@@ -61,3 +61,18 @@ def test_a_human_at_a_keyboard_still_gets_the_browser(fetch_gmail, asked, monkey
         fetch_gmail.main([])
 
     assert asked == [True]
+
+
+def test_the_default_policy_is_the_deployments_not_the_cwds(
+    fetch_gmail, tmp_path, monkeypatch
+):
+    """STU-2096: the kernel repo has no `rules/` at its root, so a cwd-relative
+    default made `make fetch` die there whatever deployment root was set."""
+    from email_classifier import deployment
+
+    monkeypatch.setattr(deployment, "ROOT", tmp_path / "deployment")
+    monkeypatch.chdir(tmp_path)
+
+    args = fetch_gmail.parse_args([])
+
+    assert args.policy == tmp_path / "deployment" / "rules" / "policy.yaml"
