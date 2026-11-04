@@ -140,7 +140,7 @@ def test_pull_webhook_runs_nothing_inline_after_the_pull():
 def test_the_deploy_steps_live_in_the_target_the_sub_make_re_reads():
     recipe = _recipe("deploy-webhook")
     assert "git submodule update --init" in recipe
-    assert '-m pip install -e "$(KERNEL)[webhook,fetch-outlook,ner]"' in recipe
+    assert '-m pip install -e "$(KERNEL)[webhook,fetch-outlook,ner,home-assistant]"' in recipe
     assert "$(MAKE) install-webhook-service" in recipe
     assert "sudo systemctl restart email-classifier-webhook" in recipe
     # The step whose absence measured the bug on the serving host: WAIT is an argument of this
