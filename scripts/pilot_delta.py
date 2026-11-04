@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -50,6 +51,10 @@ def parse_args(argv=None):
     parser.add_argument("--facts", action="store_true",
                         help="Also ask the draft-facts reader whether each sent reply kept, "
                              "extended or contradicted the draft (live LLM calls).")
+    # The reader reads real mail, so it runs where the host runs (STU-1128, STU-2088).
+    parser.add_argument("--provider", default=os.environ.get("STUDIO_PROVIDER") or None,
+                        help="--facts: the reader's provider "
+                             "(default: STUDIO_PROVIDER, else the reader's own default)")
     parser.add_argument("-o", "--out", type=Path)
     return parser.parse_args(argv)
 
@@ -130,7 +135,9 @@ def main(argv=None) -> int:
                                           list(sent_bodies.values()))
             if args.facts:
                 from email_classifier import fact_read
-                table["by_facts"] = fact_read.annotate(rows, bodies, sent_bodies, REPO_ROOT)
+                table["by_facts"] = fact_read.annotate(
+                    rows, bodies, sent_bodies, REPO_ROOT,
+                    args.provider or fact_read.DEFAULT_PROVIDER)
             tables[name] = {**table, "rows": rows}
         result["tables"] = tables
 

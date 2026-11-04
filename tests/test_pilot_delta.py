@@ -111,3 +111,15 @@ def test_an_orphaned_draft_is_named_apart_and_the_window_keeps_reading(tmp_path,
 
     assert drafted == {"t1": [(rnd, "kept")]}
     assert unmatched == {"tl"}
+
+
+def test_the_facts_reader_runs_on_the_hosts_provider(monkeypatch):
+    """STU-2088: the reader reads real mail, so it follows `STUDIO_PROVIDER`; the
+    bake-off default `anthropic` has no key on the serving host."""
+    from scripts import pilot_delta as cli
+
+    monkeypatch.setenv("STUDIO_PROVIDER", "claude-code")
+    assert cli.parse_args([]).provider == "claude-code"
+    assert cli.parse_args(["--provider", "mock"]).provider == "mock"
+    monkeypatch.delenv("STUDIO_PROVIDER")
+    assert cli.parse_args([]).provider is None
