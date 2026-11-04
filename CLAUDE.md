@@ -1840,8 +1840,19 @@ Consequences, each one tested:
   `msg:<message id>`, last row wins; a reschedule or cancellation finds its event by
   reference, then by sender domain and previous start, and more than one candidate is a
   review, not a pick. Only subtypes count, so a deterministic verdict (which carries
-  none) is never selected. The plan (create, move, delete) has no writer yet: each row
-  carries `uid` and `status` so one can append what it did.
+  none) is never selected. `email_classifier/apply/home_assistant.py` writes the plan
+  (STU-2090) under the `apply` flag the mailbox writes take: every `planned` row no later
+  `applied` or `failed` row of its key settled, so what a dry run planned is written by
+  the next run that may write (the planner never reads that message again). A dry run
+  prints each operation and sends and appends nothing. Create is the
+  `calendar.create_event` service, which returns no uid, so the event is read back over
+  its window and found by the `[mail:<id> ref:<ref>]` marker in its description; move and
+  delete are the websocket `calendar/event/update` and `calendar/event/delete`, the
+  instance listing no service for either. A uid comes only from an `applied` row: zero
+  or several marker matches, or a move or delete with none, is a `failed` row with its
+  reason and nothing is guessed. `HA_URL`/`HA_TOKEN` missing with something to write
+  refuses and alerts. The websocket client is the `home-assistant` extra, imported only
+  when a command is sent, and the suite fakes both transports.
 - `email_classifier/placeholder.py`: the drafter's `[À COMPLÉTER : ...]` marker
   (STU-2002) read outside the body (STU-2049). Drafts are plain text, so nothing in the
   Drafts list told a draft that needs input from one that does not. `holds_placeholder`
