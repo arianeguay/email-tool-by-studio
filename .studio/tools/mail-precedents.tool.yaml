@@ -5,9 +5,9 @@ version: 1
 commands:
   - name: mail_precedents-search_mail
     description: >
-      Search the club's own mailbox — sent replies included — for messages on a
-      question, and return each match as its text, the date it was written and
-      whether the club sent it.
+      Search the mailbox's earlier mail — sent replies included — for messages on
+      a question, and return each match as its text, the date it was written and
+      whether the mailbox owner sent it.
       Every match is anonymized before you see it.
     parameters:
       query:
@@ -24,15 +24,15 @@ commands:
       parse_output: json
 
 prompt_snippet: |
-  mail_precedents-search_mail(query) reads the club's earlier mail on a question —
-  what parents asked, and how the club answered. Search it when the question looks
-  like one this inbox has seen before.
+  mail_precedents-search_mail(query) reads this mailbox's earlier mail on a
+  question — what people asked, and how the mailbox owner answered. Search it when
+  the question looks like one this inbox has seen before.
 
-  Each match carries `direction`: `sent` is the club's own reply, `received` is
+  Each match carries `direction`: `sent` is the mailbox owner's own reply, `received` is
   what someone wrote to it. A precedent is a model for the WORDING. Reuse its
   phrasing, its structure, its tone; a date, an amount or a policy comes from the
   skill or from the site, and one that appears only in a precedent does not go in
-  the draft — it may have been true that season and not this one. The one
+  the draft — it may have been true then and not now. The one
   exception is the one your own instructions state for a recent `sent` match, if
   they state one; a `received` match never grounds a fact.
 
