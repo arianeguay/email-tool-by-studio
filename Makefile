@@ -47,7 +47,7 @@ ifneq ($(shell test -e .env -o -L .env && test ! -r .env && echo unreadable),)
 $(warning .env is present and this account cannot read it, so every key it sets arrives unset. Run the target under the account that owns it; `make check-webhook` names that file and that account.)
 endif
 
-.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full mailbox-poll redraft commitments commitment-settle fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate correction-rules voice-counts memory-harvest memory-harvest-approve seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent promote test test-venv test-ner clean reset-state hooks
+.PHONY: require-run-id audit-gate audit-file audit-skip run run-batch run-fetch mailbox-full mailbox-poll redraft commitments commitment-settle fetch fetch-outlook fetch-seeded apply-plan apply undo eval-fixtures eval-seed eval-threads eval-threads-seed eval-seeded eval-parity eval-spans eval-spans-seed eval-claims eval-claims-seed eval-ab qa-bakeoff qa-gate qa-gate-check qa-erosion qa-coverage qa-coverage-gate qa-coverage-gate-check qa-live-sources classify-bakeoff draft-bakeoff pilot-gate correction-rules voice-counts memory-harvest memory-harvest-approve seed seed-threads seed-reply deliver deliver-threads deliver-compare export-review unseed unseed-force serve-webhook renew-watch renew-graph renew-graph-recreate check-webhook check-unverdicted install-webhook-service pull-webhook pull-webhook-here deploy-webhook prune prune-apply recent-mail outlook-consent gmail-consent gmail-sent-consent promote test test-venv test-ner clean reset-state hooks
 
 DUMP     ?= dumps/gmail-dump.json
 OUTLOOK_DUMP ?= dumps/outlook-dump.json
@@ -233,6 +233,9 @@ outlook-consent:     ## Consent to Mail.ReadWrite so an Outlook apply run passes
 
 gmail-consent:       ## Re-consent a revoked or expired Gmail grant on the host (STU-948)
 	$(PYTHON) scripts/gmail_consent.py
+
+gmail-sent-consent:  ## Grant the readonly token a second mailbox's Sent folder is read with (STU-2108)
+	$(PYTHON) scripts/gmail_consent.py --sent
 
 eval-fixtures:       ## Replay the corpus through stage 1 and diff against golden (STU-816)
 	$(PYTHON) -m email_classifier.eval run --corpus $(CORPUS) --golden $(GOLDEN)

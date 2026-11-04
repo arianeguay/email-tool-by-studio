@@ -283,7 +283,8 @@ def get_sent_source(name: str):
     if name == "gmail":
         from email_classifier.fetch import gmail
 
-        return gmail.GmailSentSource(_gmail_service())
+        credentials = gmail.get_sent_credentials(interactive=_interactive(None))
+        return gmail.GmailSentSource(gmail.build_service(credentials))
     raise ValueError(f"no sent source {name!r}")
 
 
