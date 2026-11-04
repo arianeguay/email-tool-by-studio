@@ -1,0 +1,15 @@
+name: appointment-extract
+description: Read one message's appointment as written; `calendar-post` checks and places it.
+version: 1
+
+stages:
+  - name: appointment-extract
+    kind: extraction
+    agent: appointment-reader
+    contract: appointment-extract
+    timeout_ms: 180000
+    ralph:
+      max_attempts: 2
+    context:
+      include:
+        - input

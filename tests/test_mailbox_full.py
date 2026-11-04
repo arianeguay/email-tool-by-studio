@@ -474,9 +474,10 @@ def load_pipeline(name):
     return yaml.safe_load((PIPELINES / f"{name}.pipeline.yaml").read_text(encoding="utf-8"))
 
 
-def test_the_parent_chains_the_four_children_in_order():
+def test_the_parent_chains_the_children_in_order():
     stages = load_pipeline("mailbox-full")["stages"]
-    assert [s["call"] for s in stages] == ["fetch", "classify-batch", "apply", "drafts"]
+    assert [s["call"] for s in stages] == [
+        "fetch", "classify-batch", "apply", "drafts", "calendar"]
 
 
 def test_only_the_fetch_child_reads_the_parent_input():
@@ -485,6 +486,7 @@ def test_only_the_fetch_child_reads_the_parent_input():
     report = "{{stages.classify-batch.output.report_path}}"
     assert stages[2]["input"]["report"] == report
     assert stages[3]["input"]["report"] == report
+    assert stages[4]["input"]["report"] == report
 
 
 def test_the_children_classify_and_draft_the_dump_the_fetch_wrote():
@@ -493,6 +495,7 @@ def test_the_children_classify_and_draft_the_dump_the_fetch_wrote():
     dump = "{{stages.fetch.output.dump_path}}"
     assert stages[1]["input"]["corpus"] == dump
     assert stages[3]["input"]["corpus"] == dump
+    assert stages[4]["input"]["corpus"] == dump
     assert stages[1]["input"]["run_id"] == "{{stages.fetch.output.run_id}}"
 
 
@@ -505,10 +508,10 @@ def test_the_classify_child_is_handed_the_floor_and_the_mailbox_of_the_fetch():
     assert stages[1]["input"]["mailbox"] == "{{stages.fetch.output.mailbox}}"
 
 
-def test_only_the_drafts_child_tolerates_a_failure():
+def test_only_the_drafts_and_calendar_children_tolerate_a_failure():
     stages = load_pipeline("mailbox-full")["stages"]
     tolerated = {s["call"] for s in stages if s.get("on_failure") == "continue"}
-    assert tolerated == {"drafts"}
+    assert tolerated == {"drafts", "calendar"}
 
 
 def test_every_called_pipeline_and_its_scripts_and_contracts_exist():

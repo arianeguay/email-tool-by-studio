@@ -236,6 +236,20 @@ def test_the_red_check_names_what_the_repair_needs(tmp_path, capsys):
     assert "OUTLOOK_CLIENT_SECRET" in out
 
 
+def test_the_red_check_on_an_imap_deployment_names_the_imap_login(tmp_path, capsys):
+    """An IMAP deployment has no Graph grant, so naming one sends the reader after a
+    credential that does not exist there (STU-2094)."""
+    record = _record(tmp_path, {"corpus": "old"})
+    policy = tmp_path / "policy.yaml"
+    reference = (deployment.ROOT / "rules" / "policy.yaml").read_text(encoding="utf-8")
+    policy.write_text(reference.replace("provider: outlook", "provider: imap", 1), encoding="utf-8")
+    assert qa_gate.check({"corpus": "new"}, record, policy) == qa_gate.RECORD_MOVED
+    out = capsys.readouterr().out
+    assert "IMAP_HOST" in out and "IMAP_PASSWORD" in out
+    assert "OUTLOOK_TENANT_ID" not in out
+    assert "`ner` extra" in out
+
+
 def test_a_grown_corpus_is_sent_to_the_live_source_replay_too(tmp_path, capsys):
     """`make qa-gate` never asks whether a rejection turns on a live source, so an
     entry added here widens what STU-1114 measured on a tree the gate turns green

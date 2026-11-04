@@ -39,6 +39,7 @@ from typing import Iterable
 
 from email_classifier import prompt_sources, qa_provider, qa_studio_version
 from email_classifier.qa_replay import ERROR
+from email_classifier.stage1.policy import load_policy
 
 REJECTED = "rejected"
 
@@ -242,11 +243,26 @@ TOOL_UNREACHABLE = 4
 # repair for a moved leg, and a machine without the grant answers it with exit 4 and no
 # stamp — so the constraint has to be readable where the push goes red, one edit before
 # anyone spends a reviewer pass finding out (STU-1146).
-REPAIR_NEEDS = (
-    "`make qa-gate` needs an app-only Graph grant — OUTLOOK_TENANT_ID naming the tenant "
-    "and OUTLOOK_CLIENT_SECRET set: the reviewer's `mail_precedents-search_mail` reads "
-    "the mailbox, and without it the gate exits 4 and stamps nothing."
-)
+# What it names is how the precedent search reaches the mailbox, so it follows the
+# deployment's `email.provider` (STU-2094): a Graph grant names nothing on IMAP.
+_MAILBOX_ACCESS = {
+    "outlook": "an app-only Graph grant (OUTLOOK_TENANT_ID naming the tenant and "
+               "OUTLOOK_CLIENT_SECRET set)",
+    "imap": "the IMAP login (IMAP_HOST, IMAP_USER and IMAP_PASSWORD set)",
+}
+
+
+def _email_provider(policy_path: Path | None) -> str:
+    return load_policy(policy_path).email_provider if policy_path else "outlook"
+
+
+def repair_needs(email_provider: str) -> str:
+    access = _MAILBOX_ACCESS.get(email_provider, f"read access to the {email_provider} mailbox")
+    return (
+        f"`make qa-gate` needs {access} and the `ner` extra: the reviewer's "
+        "`mail_precedents-search_mail` reads the mailbox, and without it the gate exits 4 "
+        "and stamps nothing."
+    )
 
 
 # The corpus leg has a second repair, and only it does (STU-1166). `make qa-gate` asks
@@ -322,11 +338,13 @@ def _measured_on(recorded: dict) -> str:
     return f"{provider_part}, {version_part}"
 
 
-def check(today: dict[str, str], record_path: Path) -> int:
+def check(today: dict[str, str], record_path: Path, policy_path: Path | None = None) -> int:
     """Whether the last recorded pass was measured on the reviewer there is now.
 
     A missing record is not agreement, so it has its own code: a file written before any
     of this existed is indistinguishable from one that still holds.
+
+    The policy is read only to name the repair, so a tree with no record needs none.
     """
     recorded = json.loads(record_path.read_text(encoding="utf-8")) if record_path.exists() else {}
     previous = recorded.get("sources")
@@ -347,7 +365,7 @@ def check(today: dict[str, str], record_path: Path) -> int:
         print("A record whose fields come from two runs describes the reviewer neither "
               "of them replayed. Run `make qa-gate` — resolving it by hand cannot "
               "make it true.")
-        print(REPAIR_NEEDS)
+        print(repair_needs(_email_provider(policy_path)))
         return RECORD_ASSEMBLED
     moved = sorted(
         leg for leg in set(previous) | set(today)
@@ -365,7 +383,7 @@ def check(today: dict[str, str], record_path: Path) -> int:
           "nothing else says they still do")
     if CORPUS_LEG in moved:
         print(CORPUS_GREW)
-    print(REPAIR_NEEDS)
+    print(repair_needs(_email_provider(policy_path)))
     return RECORD_MOVED
 
 

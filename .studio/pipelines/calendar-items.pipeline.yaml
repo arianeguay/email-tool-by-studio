@@ -1,0 +1,11 @@
+name: calendar-items
+description: Fan out `appointment-extract` over the selected messages, one child run each.
+version: 1
+
+stages:
+  - map: calendar
+    over: input.messages
+    pipeline: appointment-extract
+    resume: true
+    concurrency: 4
+    on_item_failure: collect-all
