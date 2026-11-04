@@ -31,6 +31,18 @@ ANONYMIZATION_SCOPES: dict[str, list[str]] = {
 SENT_SOURCES = {"gmail"}
 
 
+@dataclass(frozen=True)
+class CalendarPolicy:
+    """The opt-in `calendar:` block (STU-2089): which subtypes carry an appointment,
+    the calendar a later writer files them in, the clock their times are read on, and
+    how long an appointment whose end the message does not state lasts."""
+
+    subtypes: tuple[str, ...]
+    entity: str
+    timezone: str
+    default_minutes: int
+
+
 @dataclass
 class Policy:
     deterministic_can_finalize: bool
@@ -77,6 +89,8 @@ class Policy:
     # Other mailboxes whose Sent folder also answers a thread (STU-2082): a deployment
     # mid-move still replies from the old one, and its own Sent folder cannot see it.
     sent_sources: list[str] = field(default_factory=list)
+    # None keeps the `calendar` child of `mailbox-full` a no-op (STU-2089).
+    calendar: CalendarPolicy | None = None
 
 
 def _start_date(value, path: Path) -> date | None:
@@ -165,6 +179,36 @@ def _envelope_rewriters(value, path: Path) -> list[str]:
     return names
 
 
+def _calendar(value, timezone: str, path: Path) -> CalendarPolicy | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"calendar must be a mapping in {path}, got {value!r}")
+    subtypes = value.get("subtypes")
+    if not isinstance(subtypes, list) or not subtypes or not all(
+        isinstance(s, str) and s for s in subtypes
+    ):
+        raise ValueError(
+            f"calendar.subtypes must list at least one subtype in {path}, got {subtypes!r}: "
+            "an empty list would select nothing and read as a mailbox with no appointments"
+        )
+    entity = value.get("entity")
+    if not isinstance(entity, str) or not entity:
+        raise ValueError(f"calendar.entity must name a calendar in {path}, got {entity!r}")
+    minutes = value.get("default_minutes", 60)
+    if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes <= 0:
+        raise ValueError(
+            f"calendar.default_minutes must be a positive whole number in {path}, "
+            f"got {minutes!r}"
+        )
+    return CalendarPolicy(
+        subtypes=tuple(subtypes),
+        entity=entity,
+        timezone=_timezone(value.get("timezone", timezone), path),
+        default_minutes=minutes,
+    )
+
+
 def load_policy(path: Path) -> Policy:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     log_cfg = data.get("frontier_log", {})
@@ -223,6 +267,7 @@ def load_policy(path: Path) -> Policy:
         vouched_skill=_vouched_skill(data.get("vouched_skill"), path),
         envelope_rewriters=_envelope_rewriters(data.get("envelope_rewriters"), path),
         sent_sources=sent_sources,
+        calendar=_calendar(data.get("calendar"), timezone, path),
     )
 
 
