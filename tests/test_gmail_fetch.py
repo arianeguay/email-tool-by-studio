@@ -462,7 +462,7 @@ def test_the_floor_reaches_the_listing_as_an_after_clause():
     gmail.GmailFetcher(_Service(messages)).fetch_inputs(
         query="", max_results=10, since="2026-08-19T00:00:00+00:00"
     )
-    assert messages.list_queries == ["after:2026/08/18"]
+    assert messages.list_queries == ["-in:sent -in:drafts after:2026/08/18"]
 
 
 def test_the_after_clause_is_a_day_wide_of_the_real_floor():
@@ -473,7 +473,7 @@ def test_the_after_clause_is_a_day_wide_of_the_real_floor():
     gmail.GmailFetcher(_Service(messages)).fetch_inputs(
         query="", max_results=10, since="2026-08-19T00:00:00+00:00"
     )
-    assert messages.list_queries == ["after:2026/08/18"]
+    assert messages.list_queries == ["-in:sent -in:drafts after:2026/08/18"]
 
 
 def test_the_floor_is_anded_with_the_caller_query():
@@ -481,13 +481,13 @@ def test_the_floor_is_anded_with_the_caller_query():
     gmail.GmailFetcher(_Service(messages)).fetch_inputs(
         query="label:promotions", max_results=10, since="2026-08-19T00:00:00+00:00"
     )
-    assert messages.list_queries == ["label:promotions after:2026/08/18"]
+    assert messages.list_queries == ["label:promotions -in:sent -in:drafts after:2026/08/18"]
 
 
 def test_no_floor_leaves_the_query_alone():
     messages = _Messages([{"messages": []}], {})
     gmail.GmailFetcher(_Service(messages)).fetch_inputs(query="from:x", max_results=10)
-    assert messages.list_queries == ["from:x"]
+    assert messages.list_queries == ["from:x -in:sent -in:drafts"]
 
 
 def test_the_sent_source_lists_replies_to_a_correspondent_after_an_instant():
@@ -504,3 +504,11 @@ def test_the_sent_source_lists_replies_to_a_correspondent_after_an_instant():
     assert messages.list_queries == ["in:sent to:parent@example.ca after:1781252100"]
     assert sent == [{"date": "2026-06-12T09:00:00+00:00", "subject": "RE: Horaire",
                      "in_reply_to": "<m1>", "references": ""}]
+
+
+def test_the_cap_is_spent_on_incoming_mail_not_on_sent_or_drafts():
+    """STU-2097: the cap counts listed ids before `_NOT_INCOMING` drops any, so the
+    listing itself leaves out what the GET would only throw away."""
+    messages = _Messages([{"messages": []}], {})
+    gmail.GmailFetcher(_Service(messages)).fetch_inputs(query="", max_results=10)
+    assert messages.list_queries == ["-in:sent -in:drafts"]

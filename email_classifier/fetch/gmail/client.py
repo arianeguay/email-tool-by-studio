@@ -33,6 +33,10 @@ _PAGE_SIZE = 500
 # Labels that keep a message out of what a run classifies (STU-963). SENT is in the
 # list for a different reason than the others: our own reply is not mail to classify.
 _NOT_INCOMING = frozenset({"TRASH", "SPAM", "DRAFT", "SENT"})
+# The half of `_NOT_INCOMING` the listing would otherwise spend `max_results` on
+# (STU-2097): measured on a test mailbox, 25 slots went to drafts and sent mail and the
+# older inbox was never listed. Spam and trash are already out by Gmail's default.
+_LISTING_EXCLUDES = "-in:sent -in:drafts"
 
 CONSENT_COMMAND = "make gmail-consent"
 
@@ -291,8 +295,9 @@ class GmailFetcher:
         window is spent on mail the run can actually use. It is a hint and never
         the boundary — see `_bounded`.
         """
+        listing = f"{query} {_LISTING_EXCLUDES}" if query else _LISTING_EXCLUDES
         return self.fetch_inputs_by_ids(
-            _list_message_ids(self._service, query, max_results, since)
+            _list_message_ids(self._service, listing, max_results, since)
         )
 
     def conversation_message_ids(self, thread_id: str) -> list[str]:
