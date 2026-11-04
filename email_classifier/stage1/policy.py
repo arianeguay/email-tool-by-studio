@@ -41,6 +41,9 @@ class CalendarPolicy:
     entity: str
     timezone: str
     default_minutes: int
+    # A stage-1 verdict carries no subtype (STU-2102), so a rule-decided appointment is
+    # selected by the id of the rule that decided it.
+    rules: tuple[str, ...] = ()
 
 
 @dataclass
@@ -192,6 +195,9 @@ def _calendar(value, timezone: str, path: Path) -> CalendarPolicy | None:
             f"calendar.subtypes must list at least one subtype in {path}, got {subtypes!r}: "
             "an empty list would select nothing and read as a mailbox with no appointments"
         )
+    rules = value.get("rules", [])
+    if not isinstance(rules, list) or not all(isinstance(r, str) and r for r in rules):
+        raise ValueError(f"calendar.rules must be a list of rule ids in {path}, got {rules!r}")
     entity = value.get("entity")
     if not isinstance(entity, str) or not entity:
         raise ValueError(f"calendar.entity must name a calendar in {path}, got {entity!r}")
@@ -206,6 +212,7 @@ def _calendar(value, timezone: str, path: Path) -> CalendarPolicy | None:
         entity=entity,
         timezone=_timezone(value.get("timezone", timezone), path),
         default_minutes=minutes,
+        rules=tuple(rules),
     )
 
 
