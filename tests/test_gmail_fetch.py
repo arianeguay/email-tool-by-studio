@@ -294,6 +294,59 @@ def test_get_credentials_still_consents_when_a_browser_is_available(monkeypatch,
     assert consent_calls == [0]
 
 
+# --- the readonly grant of a second mailbox's Sent folder (STU-2108) -----------
+
+
+def _token(tmp_path, scopes):
+    token = tmp_path / "token.json"
+    token.write_text(json.dumps({"scopes": scopes}), encoding="utf-8")
+    return token
+
+
+def test_sent_credentials_accept_a_readonly_only_token(monkeypatch, tmp_path):
+    asked = []
+    _stub_google(monkeypatch, _FakeCreds(valid=True), [])
+    original = sys.modules["google.oauth2.credentials"].Credentials.from_authorized_user_info
+    monkeypatch.setattr(sys.modules["google.oauth2.credentials"].Credentials,
+                        "from_authorized_user_info",
+                        staticmethod(lambda info, scopes: asked.append(scopes) or original(info, scopes)))
+
+    creds = gmail.get_sent_credentials(token_file=_token(tmp_path, gmail.SENT_SCOPES),
+                                       interactive=False)
+
+    assert creds.valid
+    assert asked == [gmail.SENT_SCOPES]
+
+
+def test_sent_consent_asks_for_readonly_and_never_modify(monkeypatch, tmp_path):
+    asked = []
+    _stub_google(monkeypatch, None, [])
+    flow = sys.modules["google_auth_oauthlib.flow"].InstalledAppFlow
+    original = flow.from_client_secrets_file
+    monkeypatch.setattr(flow, "from_client_secrets_file",
+                        staticmethod(lambda path, scopes: asked.append(scopes) or original(path, scopes)))
+
+    gmail.get_sent_credentials(token_file=tmp_path / "absent.json", interactive=True)
+
+    assert asked == [["https://www.googleapis.com/auth/gmail.readonly"]]
+
+
+def test_sent_grant_lost_names_its_own_consent_command(monkeypatch, tmp_path):
+    _stub_google(monkeypatch, None, [])
+
+    with pytest.raises(gmail.GrantLost) as raised:
+        gmail.get_sent_credentials(token_file=tmp_path / "absent.json", interactive=False)
+
+    assert gmail.SENT_CONSENT_COMMAND in str(raised.value)
+
+
+def test_fetcher_credentials_still_reject_a_readonly_token(monkeypatch, tmp_path):
+    _stub_google(monkeypatch, _FakeCreds(valid=True), [])
+
+    with pytest.raises(gmail.GrantLost, match="short of"):
+        gmail.get_credentials(token_file=_token(tmp_path, gmail.SENT_SCOPES), interactive=False)
+
+
 # --- a grant that dies mid-run (STU-953) ---------------------------------------
 
 

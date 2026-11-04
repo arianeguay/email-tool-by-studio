@@ -10,11 +10,14 @@ dispatch and the Gmail/Outlook ontology mapping.
 from email_classifier.fetch.gmail.client import (
     CONSENT_COMMAND,
     SCOPES,
+    SENT_CONSENT_COMMAND,
+    SENT_SCOPES,
     GmailFetcher,
     GmailSentSource,
     GrantAware,
     build_service,
     get_credentials,
+    get_sent_credentials,
 )
 from email_classifier.fetch.gmail.push import list_new_message_ids, watch
 from email_classifier.fetch.grant import GrantLost
@@ -22,9 +25,12 @@ from email_classifier.fetch.grant import GrantLost
 __all__ = [
     "CONSENT_COMMAND",
     "SCOPES",
+    "SENT_CONSENT_COMMAND",
+    "SENT_SCOPES",
     "GrantLost",
     "GrantAware",
     "get_credentials",
+    "get_sent_credentials",
     "build_service",
     "GmailFetcher",
     "GmailSentSource",

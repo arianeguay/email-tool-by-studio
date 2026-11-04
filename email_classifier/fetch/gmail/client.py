@@ -21,6 +21,9 @@ from email_classifier.providers import trashed_by_us
 # gmail.modify is the minimal scope for labels + trash (STU-405). It does NOT
 # allow permanent deletion (messages.delete) or sending — never widen further.
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+# A second mailbox's Sent folder is only read (STU-2108). Its own token keeps a host
+# that drafts over untrusted mail from holding a grant that can send.
+SENT_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 # Headers requested from the API. format='metadata' returns only these, so the
 # privacy allowlist is enforced at the request boundary. From/Subject are
@@ -39,9 +42,11 @@ _NOT_INCOMING = frozenset({"TRASH", "SPAM", "DRAFT", "SENT"})
 _LISTING_EXCLUDES = "-in:sent -in:drafts"
 
 CONSENT_COMMAND = "make gmail-consent"
+SENT_CONSENT_COMMAND = "make gmail-sent-consent"
 
 _DEFAULT_CREDENTIALS = Path("secrets/credentials.json")
 _DEFAULT_TOKEN = Path("secrets/token.json")
+_DEFAULT_SENT_TOKEN = Path("secrets/sent-token.json")
 
 
 def _resolve(explicit: Path | None, env_var: str, default: Path) -> Path:
@@ -51,14 +56,16 @@ def _resolve(explicit: Path | None, env_var: str, default: Path) -> Path:
     return Path(from_env) if from_env else default
 
 
-def _has_required_scopes(token_info: dict) -> bool:
-    return set(SCOPES) <= set(token_info.get("scopes", []))
+def _has_required_scopes(token_info: dict, scopes: list[str] = SCOPES) -> bool:
+    return set(scopes) <= set(token_info.get("scopes", []))
 
 
 def get_credentials(
     credentials_file: Path | None = None,
     token_file: Path | None = None,
     interactive: bool = True,
+    scopes: list[str] = SCOPES,
+    consent_command: str = CONSENT_COMMAND,
 ):
     """Load a cached token, refresh it, or run the InstalledApp consent flow.
 
@@ -84,10 +91,10 @@ def get_credentials(
     why = "no cached token"
     if token_path.exists():
         token_info = json.loads(token_path.read_text(encoding="utf-8"))
-        if _has_required_scopes(token_info):
-            creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+        if _has_required_scopes(token_info, scopes):
+            creds = Credentials.from_authorized_user_info(token_info, scopes)
         else:
-            why = f"the cached token is short of {' '.join(SCOPES)}"
+            why = f"the cached token is short of {' '.join(scopes)}"
 
     if creds and creds.valid:
         return creds
@@ -104,14 +111,24 @@ def get_credentials(
         if not interactive:
             raise GrantLost(
                 f"the cached Gmail grant is unusable ({why}) and this process has "
-                f"no browser to consent in. Run `{CONSENT_COMMAND}` on the host."
+                f"no browser to consent in. Run `{consent_command}` on the host."
             )
-        flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
+        flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), scopes)
         creds = flow.run_local_server(port=0)
 
     token_path.parent.mkdir(parents=True, exist_ok=True)
     token_path.write_text(creds.to_json(), encoding="utf-8")
     return creds
+
+
+def get_sent_credentials(token_file: Path | None = None, interactive: bool = True):
+    """The readonly grant a second mailbox's Sent folder is read with (STU-2108)."""
+    return get_credentials(
+        token_file=_resolve(token_file, "GMAIL_SENT_TOKEN_FILE", _DEFAULT_SENT_TOKEN),
+        interactive=interactive,
+        scopes=SENT_SCOPES,
+        consent_command=SENT_CONSENT_COMMAND,
+    )
 
 
 def build_service(creds):
