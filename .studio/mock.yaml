@@ -15,3 +15,18 @@ stages:
       suggested_label: mock/offline
       reasoning: Static mock classification (offline deterministic replay).
     tool_calls: []
+  appointment-extract:
+    output:
+      kind: not_appointment
+      title: null
+      date: null
+      weekday: null
+      start_time: null
+      end_time: null
+      date_evidence: null
+      previous_date: null
+      previous_start_time: null
+      reference: null
+      location: null
+      confidence: high
+    tool_calls: []

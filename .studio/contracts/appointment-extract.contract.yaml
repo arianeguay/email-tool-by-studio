@@ -1,0 +1,12 @@
+name: appointment-extract
+version: 1
+
+# Only the two fields that are never null are required; the agent prompt lists the
+# rest (title, date, weekday, start_time, end_time, date_evidence, previous_date,
+# previous_start_time, reference, location). Every value is checked by `calendar-post`
+# against the message, and one that fails lands in `logs/calendar/review.jsonl`: a retry
+# would ask the same model the same question, where a human reads it once.
+schema:
+  required_fields:
+    - kind
+    - confidence

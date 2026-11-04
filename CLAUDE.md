@@ -82,7 +82,7 @@ make test       # the suite CI guards: [dev,webhook], no `ner`, -n auto (STU-105
 make test-ner   # the same, on the interpreter that carries the extra: the ~40 span tests
 make run        # end-to-end run orchestrated by Python
 make run-batch  # same run, orchestrated by Studio (fan-out over the grey zone)
-make mailbox-full  # fetch -> classify -> apply -> drafts under a single Studio run id
+make mailbox-full  # fetch -> classify -> apply -> drafts -> calendar under a single Studio run id
 make mailbox-full PYTHON=.venv-3.12/bin/python  # a venv somewhere other than .venv/
 make redraft LINK='<Outlook link to the thread>'  # deletes the thread's draft, writes a new one
 make deliver       # sends the corpus into the test mailbox over real SMTP (STU-934)
@@ -473,11 +473,12 @@ bias; a dead provider is a dead run, because it fails every child identically an
 `on_failure: continue` that protects the first case then swallows all the others.
 
 `.studio/pipelines/mailbox-full.pipeline.yaml` (STU-846) chains `fetch` -> `classify-batch`
--> `apply` -> `drafts` as `call:` stages under one run id; resume at a boundary with
-`studio replay <run-id> --restart --stage apply`. `fetch` mints the run id and writes
-`dumps/<run-id>.json`; the later stages consume its output, never a path from the input
-(STU-896). Only `drafts` is tolerated in failure (STU-850): reply drafts on `needs_reply`,
-a draft/QA group, anti-theatre on the draft's creation.
+-> `apply` -> `drafts` -> `calendar` as `call:` stages under one run id; resume at a
+boundary with `studio replay <run-id> --restart --stage apply`. `fetch` mints the run id
+and writes `dumps/<run-id>.json`; the later stages consume its output, never a path from
+the input (STU-896). Only `drafts` (STU-850: reply drafts on `needs_reply`, a draft/QA
+group, anti-theatre on the draft's creation) and `calendar` (STU-2089) are tolerated in
+failure.
 
 ### The unit of verdict is the conversation (STU-940)
 
@@ -1824,6 +1825,23 @@ Consequences, each one tested:
   listed, so an empty list means no matched sentence, never no commitment. The sentence is
   stored as the drafter wrote it, tokens included. A draft deleted by `undo` or `redraft`
   leaves its entries open, the direction that over-reports.
+- `email_classifier/calendar_plan.py` + `scripts/calendar_pre.py` /
+  `scripts/calendar_post.py`: appointments read out of classified mail and planned as
+  calendar events (STU-2089), the `calendar` child of `mailbox-full`, a no-op unless the
+  policy carries a `calendar:` block (`subtypes`, `entity`, `timezone`, `default_minutes`).
+  The pre-stage selects the report rows whose subtype is listed, minus the message ids
+  either journal already holds, tokenized with the batch keymap; the
+  `appointment-extract` agent reports the date and wall-clock times as written and the
+  sentence that states them, and never an offset. The module does what can be checked:
+  the evidence is in the message, a stated weekday matches the date, a missing year is
+  the next occurrence after the message, times are placed in the policy timezone. A
+  failed check or a low confidence goes to `logs/calendar/review.jsonl`, never to the
+  plan. `logs/calendar/events.jsonl` is append-only, keyed `ref:<booking reference>` or
+  `msg:<message id>`, last row wins; a reschedule or cancellation finds its event by
+  reference, then by sender domain and previous start, and more than one candidate is a
+  review, not a pick. Only subtypes count, so a deterministic verdict (which carries
+  none) is never selected. The plan (create, move, delete) has no writer yet: each row
+  carries `uid` and `status` so one can append what it did.
 - `email_classifier/placeholder.py`: the drafter's `[À COMPLÉTER : ...]` marker
   (STU-2002) read outside the body (STU-2049). Drafts are plain text, so nothing in the
   Drafts list told a draft that needs input from one that does not. `holds_placeholder`

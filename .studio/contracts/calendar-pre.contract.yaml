@@ -1,0 +1,10 @@
+name: calendar-pre
+version: 1
+
+schema:
+  required_fields:
+    - run_id
+    - enabled
+    - needs_extract
+    - pending
+    - paths
