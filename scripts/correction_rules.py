@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,7 +39,9 @@ def parse_args(argv=None):
     parser.add_argument("--runs-dir", type=Path, nargs="+", default=[Path(".studio/runs")])
     parser.add_argument("--draft-journal", type=Path,
                         default=Path("logs/drafts/journal.jsonl"))
-    parser.add_argument("--provider", default=correction_rules.DEFAULT_PROVIDER)
+    # The reader reads real mail, so it runs where the host runs (STU-1128, STU-2088).
+    parser.add_argument("--provider",
+                        default=os.environ.get("STUDIO_PROVIDER") or correction_rules.DEFAULT_PROVIDER)
     parser.add_argument("-o", "--out", type=Path,
                         help=f"Default: {OUT_DIR}/<UTC time>.json, on the retention shelf.")
     return parser.parse_args(argv)
