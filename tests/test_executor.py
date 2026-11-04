@@ -78,7 +78,7 @@ def test_label_archive_adds_bucket_label_and_removes_inbox(journal):
     outcomes = apply([verdict(bucket="B")], writer, make_policy(), journal)
 
     assert [(o.status, o.operation) for o in outcomes] == [("applied", "archive")]
-    assert writer.labels_of("m1") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_mark_for_delete_trashes_when_allowed(journal):
@@ -105,7 +105,7 @@ def test_mark_for_delete_downgrades_to_archive_when_not_allowed(journal):
 
     assert [(o.status, o.operation) for o in outcomes] == [("applied", "archive")]
     assert writer.trashed == []
-    assert writer.labels_of("m1") == {"ec/D", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/D", PROCESSED_LABEL}
 
 
 def test_rerun_skips_already_processed_messages(journal):
@@ -168,7 +168,7 @@ def test_per_message_error_is_isolated_and_leaves_no_marker(journal):
         ("applied", None),
     ]
     assert writer.labels_of("m1") == {"INBOX"}
-    assert writer.labels_of("m2") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m2") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_label_archive_without_bucket_is_a_per_message_error(journal):
@@ -191,7 +191,7 @@ def test_label_ids_are_resolved_once_per_name(journal):
 
     apply(verdicts, writer, make_policy(), journal)
 
-    assert sorted(writer.ensure_calls) == ["ec/B", "ec/C", PROCESSED_LABEL]
+    assert sorted(writer.ensure_calls) == ["email-tool/B", "email-tool/C", PROCESSED_LABEL]
 
 
 def test_summary_counts_each_outcome(journal):
@@ -242,7 +242,7 @@ def test_a_conversation_archives_under_one_bucket_label(journal):
 
     apply(verdicts, writer, make_policy(), journal)
 
-    assert writer.labels_of("m1") == writer.labels_of("m2") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == writer.labels_of("m2") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_one_unfinalizable_message_holds_its_whole_conversation(journal):
@@ -312,7 +312,7 @@ def test_a_conversation_apply_undoes_exactly(journal, tmp_path):
 # The fetch now hands a later run the whole thread, so these are two runs over the
 # same conversation: the first sees the opener alone, the second sees both messages.
 # What the second one may do to a message the first already acted on is decided by
-# the `ec/<bucket>` that message carries, never by the marker alone.
+# the `email-tool/<bucket>` that message carries, never by the marker alone.
 
 
 def test_a_reply_pulls_its_archived_opener_back_into_the_inbox(journal):
@@ -322,7 +322,7 @@ def test_a_reply_pulls_its_archived_opener_back_into_the_inbox(journal):
     opener = thread("m1", "2026-08-18T09:00:00+00:00", "C", "label_archive")
 
     apply([opener], writer, make_policy(), journal)
-    assert writer.labels_of("m1") == {"ec/C", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/C", PROCESSED_LABEL}
 
     outcomes = apply(
         [opener, thread("m2", "2026-08-19T09:00:00+00:00", "A", "needs_reply")],
@@ -351,11 +351,11 @@ def test_a_reply_archives_the_opener_the_last_run_left_visible(journal):
     )
 
     assert [o.operation for o in outcomes] == ["archive", "archive"]
-    assert writer.labels_of("m1") == writer.labels_of("m2") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == writer.labels_of("m2") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_a_rising_bucket_relabels_without_moving_the_message_twice(journal):
-    """Precedence raised C to B across runs. Both messages end under ec/B, and the
+    """Precedence raised C to B across runs. Both messages end under email-tool/B, and the
     already-archived one is relabelled in place — not archived a second time."""
     writer = inboxed(FakeWriter(), "m1", "m2")
     opener = thread("m1", "2026-08-18T09:00:00+00:00", "C", "label_archive")
@@ -367,11 +367,11 @@ def test_a_rising_bucket_relabels_without_moving_the_message_twice(journal):
         writer, make_policy(), journal,
     )
 
-    assert writer.labels_of("m1") == writer.labels_of("m2") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == writer.labels_of("m2") == {"email-tool/B", PROCESSED_LABEL}
     # No second `remove_label INBOX`, and no re-stamped marker: only the difference.
     assert [(e["op"], e["label"]) for e in read_entries(journal.path)][:2] == [
-        ("remove_label", "ec/C"),
-        ("add_label", "ec/B"),
+        ("remove_label", "email-tool/C"),
+        ("add_label", "email-tool/B"),
     ]
 
 
@@ -389,11 +389,11 @@ def test_an_archive_that_died_before_labelling_is_finished_next_run(journal):
     outcomes = apply([v], writer, make_policy(), journal)
 
     assert [(o.status, o.operation) for o in outcomes] == [("applied", "archive")]
-    assert writer.labels_of("m1") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_a_message_a_human_moved_back_is_left_where_they_put_it(journal):
-    """Dragging an archived message to the inbox does not remove its ec/<bucket>, so
+    """Dragging an archived message to the inbox does not remove its email-tool/<bucket>, so
     an unchanged verdict still reads as converged. Only a changed one overrides."""
     writer = inboxed(FakeWriter(), "m1", "m2")
     opener = thread("m1", "2026-08-18T09:00:00+00:00", "C", "label_archive")
@@ -424,7 +424,7 @@ def test_a_changed_verdict_moves_the_message_a_human_moved_back(journal):
         writer, make_policy(), journal,
     )
 
-    assert writer.labels_of("m1") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_a_second_run_undoes_only_what_it_changed(journal, tmp_path):
@@ -479,7 +479,7 @@ def test_a_reply_untrashes_the_opener_the_last_run_threw_out(journal):
 
 def test_a_reply_that_archives_the_thread_untrashes_the_opener_into_the_archive(journal):
     """The same reopening, landing on B rather than A: out of the trash, then filed —
-    never left in Deleted Items wearing an ec/<bucket>."""
+    never left in Deleted Items wearing an email-tool/<bucket>."""
     writer = inboxed(FakeWriter(), "m1", "m2")
     opener = thread("m1", "2026-08-18T09:00:00+00:00", "D", "mark_for_delete")
 
@@ -490,7 +490,7 @@ def test_a_reply_that_archives_the_thread_untrashes_the_opener_into_the_archive(
     )
 
     assert [o.operation for o in outcomes] == ["archive", "archive"]
-    assert writer.labels_of("m1") == writer.labels_of("m2") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == writer.labels_of("m2") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_a_second_run_undoes_exactly_the_untrash_it_issued(journal, tmp_path):
@@ -529,7 +529,7 @@ def test_a_still_deleted_thread_leaves_the_trashed_message_where_it_is(journal):
 
 
 def test_trashing_an_archived_message_strips_its_bucket_label(journal):
-    """What makes our own trash recognizable: this app never leaves an ec/<bucket> on a
+    """What makes our own trash recognizable: this app never leaves an email-tool/<bucket> on a
     message in Deleted Items, so one that carries a bucket got there some other way."""
     writer = inboxed(FakeWriter(), "m1", "m2")
     opener = thread("m1", "2026-08-18T09:00:00+00:00", "C", "label_archive")
@@ -584,7 +584,7 @@ def test_untrashing_an_archived_message_states_the_inbox_explicitly(journal):
 
 
 def test_a_message_a_human_pulled_out_of_the_trash_is_not_thrown_out_again(journal):
-    """`ec/deleted` is read out of the trash as well as in it: the message carries our
+    """`email-tool/deleted` is read out of the trash as well as in it: the message carries our
     record of a deletion and is demonstrably not deleted, so somebody put it back. The
     label stays — it is what keeps the next run, and every run after, from repeating
     a destructive action against their move."""
@@ -602,7 +602,7 @@ def test_a_message_a_human_pulled_out_of_the_trash_is_not_thrown_out_again(journ
 
 
 def test_a_trash_that_died_on_the_move_is_not_retried(journal):
-    """`ec/deleted` goes on before the move, so a run that dies on it leaves a message
+    """`email-tool/deleted` goes on before the move, so a run that dies on it leaves a message
     that reads exactly like one a human pulled back out — and is treated as one. The
     cost of that ambiguity is this: the trash is not retried. It is the cheap half,
     since the message stays in the Inbox where it can be seen."""
@@ -702,7 +702,7 @@ def test_an_expired_inbox_message_is_planned_for_archive(journal):
 
     assert [(o.status, o.operation) for o in outcomes] == [("planned", "archive")]
     assert [(e["op"], e.get("label")) for e in read_entries(journal.path)] == [
-        ("remove_label", "INBOX"), ("add_label", "ec/A"), ("add_label", PROCESSED_LABEL),
+        ("remove_label", "INBOX"), ("add_label", "email-tool/A"), ("add_label", PROCESSED_LABEL),
     ]
     assert writer.labels_of("m1") == {"INBOX"}
 
@@ -723,7 +723,7 @@ def test_an_expiry_archives_a_message_an_earlier_run_kept_visible(journal):
     outcomes = apply_at([code()], writer, journal)
 
     assert [(o.status, o.operation) for o in outcomes] == [("applied", "archive")]
-    assert writer.labels_of("m1") == {"ec/A", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/A", PROCESSED_LABEL}
 
 
 def test_an_expired_message_already_archived_is_left_alone(journal):
@@ -733,7 +733,7 @@ def test_an_expired_message_already_archived_is_left_alone(journal):
     outcomes = apply_at([code()], writer, journal)
 
     assert [o.status for o in outcomes] == ["skipped_processed"]
-    assert writer.labels_of("m1") == {"ec/A", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/A", PROCESSED_LABEL}
 
 
 def test_a_message_a_human_moved_out_of_the_inbox_is_not_touched(journal):

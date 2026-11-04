@@ -81,8 +81,8 @@ def test_undo_is_journaled_and_summarized(journal, undo_journal):
     outcomes = undo_entries(read_entries(journal.path), writer, undo_journal)
 
     assert [(e["op"], e["label"], e["status"]) for e in read_entries(undo_journal.path)] == [
-        ("remove_label", "ec/processed", "ok"),
-        ("remove_label", "ec/B", "ok"),
+        ("remove_label", "email-tool/processed", "ok"),
+        ("remove_label", "email-tool/B", "ok"),
         ("add_label", "INBOX", "ok"),
     ]
     assert "3 operations reverted | 0 errors | 1 messages touched" in render_summary(

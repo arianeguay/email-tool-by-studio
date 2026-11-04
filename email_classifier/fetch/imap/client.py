@@ -3,7 +3,7 @@
 Incoming mail is what sits in the Inbox and the Archive; the Archive holds the
 older half of a conversation an earlier run filed. Sent, Drafts and Junk are
 never incoming (STU-996), and the Trash only for a message this app put there
-itself (`ec/deleted`, STU-983). A message in any other folder, one a human or a
+itself (`email-tool/deleted`, STU-983). A message in any other folder, one a human or a
 Sieve rule filed, is not this app's to read or touch, exactly as Outlook's
 `ELSEWHERE` (STU-1075).
 """

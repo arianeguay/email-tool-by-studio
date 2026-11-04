@@ -326,13 +326,13 @@ def test_a_draft_holding_a_placeholder_is_marked_in_the_same_write():
     OutlookDrafter(session).upsert_reply_draft(
         "m1", "t1", "Le tournoi a lieu le [À COMPLÉTER : date du tournoi].")
 
-    assert session.drafts["d1"]["categories"] == ["ec/à-compléter"]
+    assert session.drafts["d1"]["categories"] == ["email-tool/à-compléter"]
     assert sum(1 for method, *_ in session.calls if method == "PATCH") == 1
 
 
 def test_a_rewrite_without_a_placeholder_clears_the_mark():
     session = _Session({"d1": {"conversationId": "t1", "body": "[À COMPLÉTER : prix]",
-                               "categories": ["ec/à-compléter"]}})
+                               "categories": ["email-tool/à-compléter"]}})
 
     OutlookDrafter(session).upsert_reply_draft("m1", "t1", "Le prix est de 120 $.")
 

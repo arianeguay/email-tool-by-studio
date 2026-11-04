@@ -519,7 +519,7 @@ Consequences, each one tested:
   report lives in gitignored `reports/`. The price is the stage 2 call of a sibling that
   escalates, on every run that touches its thread;
 - apply therefore converges on a **state diff**, not on the marker (STU-963): we alone
-  write `ec/<bucket>`, so the label a message carries *is* the record of what we did. Equal
+  write `email-tool/<bucket>`, so the label a message carries *is* the record of what we did. Equal
   to today's verdict means converged, nothing moves; different means corrected, in both
   directions (`unarchive` is the operation that was missing to undo an archive). This
   holds because the bucket label is written **last**: out of the Inbox then labelled, back
@@ -527,15 +527,15 @@ Consequences, each one tested:
   label, unfinished, so the next run completes it; the reverse order would leave a label
   without the move, which the next run would read as converged, stranding the message in
   the Inbox forever. It is also what respects a human move: moving an archived message back
-  into the Inbox does not remove its `ec/C`, so an unchanged verdict reads it as converged,
+  into the Inbox does not remove its `email-tool/C`, so an unchanged verdict reads it as converged,
   and a changed verdict moves it again, folder included. The trash is the third location
   on the same axis (STU-983), not an exception: `label_ids` reports `TRASH` the way it
   reports `INBOX`, so a thread that a reply brings back to A or B pulls out of the trash
   the half an earlier run had thrown there. What makes this decidable is that
   `mark_for_delete` **removes the bucket label before the move**: we only trash a message
-  taken from the Inbox, and we never leave one in the trash carrying an `ec/<bucket>`.
+  taken from the Inbox, and we never leave one in the trash carrying an `email-tool/<bucket>`.
   Marker without a bucket means our trash. Which half is ours needs its own record, and has
-  one: `ec/deleted`, written **before** the move. `ec/<bucket>` says where we filed;
+  one: `email-tool/deleted`, written **before** the move. `email-tool/<bucket>` says where we filed;
   nothing said that we had trashed, and no location label can say *who* did. Nor can it be
   inferred from the absence of a bucket: an applied `keep_visible` also leaves a message
   marked and bucketless, so that test would read as ours every email a human deletes after
@@ -543,7 +543,7 @@ Consequences, each one tested:
   act: in the trash without it, the deletion is someone else's; outside the trash with it,
   someone put it back (or a run died before the move) and we do not throw it away a second
   time. Same rule as "the human move holds" on the Archive side, same price: a dead trash
-  is not taken back. A message in the trash without `ec/deleted` at apply time (a human
+  is not taken back. A message in the trash without `email-tool/deleted` at apply time (a human
   deleting between fetch and apply) is neither moved nor stamped. Leaving the trash always
   states its destination: `untrash` restores the previous labels on Gmail and moves to the
   Inbox on Graph, so the plan cannot inherit one;
@@ -552,7 +552,7 @@ Consequences, each one tested:
   drops without anyone having decided nothing was owed (`held_replies`: thread not decided
   in full, or action clamped by the bucket), since an email silently left unanswered is
   worse than an email left unmoved;
-- an action decided on a bucket outside the taxonomy raises: `ec/<bucket>` and the
+- an action decided on a bucket outside the taxonomy raises: `email-tool/<bucket>` and the
   taxonomy are one vocabulary, and holding it for review would hold it on every run. The
   list of actions per bucket stays in `email_classifier/core/contract.py` (INV-08); the
   module takes only the clamping fallback from it;
@@ -611,7 +611,7 @@ Consequences, each one tested:
   thread (`conversation_message_ids`), drafts and Junk Email dropped on the provider side.
   Deleted Items too, but by the `providers.trashed_by_us` test and not by folder (STU-983):
   "someone threw it away" is only true of a message we did not throw away ourselves, and
-  ours say so on themselves (`ec/deleted`); the half an earlier run trashed therefore comes
+  ours say so on themselves (`email-tool/deleted`); the half an earlier run trashed therefore comes
   back when a reply reopens the thread, and what a human deleted stays out, otherwise it
   would be reclassified on every run, vote in the thread's verdict and could be pulled out
   against them. Sent Items too, for a bigger reason: our own reply is not mail to classify,
@@ -682,7 +682,7 @@ Consequences, each one tested:
   (STU-406), plus the apply journal, dry-run and undo (STU-407).
   `undo` also deletes the drafts the run created (STU-854), except those a human has sent
   or edited since; the executor acts per conversation, not per message (STU-940), and
-  converges on the `ec/<bucket>` already carried rather than skipping every marked message
+  converges on the `email-tool/<bucket>` already carried rather than skipping every marked message
   (STU-963), both rules stated above. The marker is rewritten only when it is missing:
   putting it back would not change the mailbox but would add a journal line, and undoing
   that run would then strip the marker an earlier run had set.
@@ -693,14 +693,14 @@ Consequences, each one tested:
   `ELSEWHERE` and the executor skips it as `skipped_elsewhere`, marker included. Without
   that, a report that outlives its mail read like a live message that had simply already
   left the Inbox: a `make apply RUN_ID=<an older run>` (which is what a rollback or a
-  resume looks like) planned an archive with no move, stamped `ec/<bucket>` on mail in the
+  resume looks like) planned an archive with no move, stamped `email-tool/<bucket>` on mail in the
   dumpster, and journalled every operation `ok`.
   A stage-1 rule may carry `expires_after` (`30m`, `1h`, `2d`: a count and one of `m`, `h`,
   `d`), and its verdict then records `expires_at`, the message date plus that duration
   (STU-2070). Once the expiry of a conversation's most recent message has passed, apply
   archives it with `label_archive`, past the bucket's clamp, since archiving is what the
   rule asked for. Only from the Inbox, or a message we already filed: one a human moved out
-  with no `ec/<bucket>` of ours stays where they put it. A fetch reaches back to its floor
+  with no `email-tool/<bucket>` of ours stays where they put it. A fetch reaches back to its floor
   and no further, so the `mailbox-full` apply stage (`scripts/apply_report.py`) also reads
   every other report next to its own for conversations whose expiry has passed, each taken
   from the report holding its most recent message. The archive is journaled by the current
@@ -1845,28 +1845,28 @@ Consequences, each one tested:
 - `email_classifier/placeholder.py`: the drafter's `[À COMPLÉTER : ...]` marker
   (STU-2002) read outside the body (STU-2049). Drafts are plain text, so nothing in the
   Drafts list told a draft that needs input from one that does not. `holds_placeholder`
-  is the one test: the Outlook drafter sets the category `ec/à-compléter` in the PATCH
+  is the one test: the Outlook drafter sets the category `email-tool/à-compléter` in the PATCH
   that writes the body, and sends the whole set, so a rewrite without the marker clears
   it (only an untouched draft of ours is ever rewritten, so no one else's category is
   lost). `audit_run.py reviewed` runs `flag_sent` on the Sent Items bodies it already
   reads and alerts when a reply went out with the marker. Gmail and IMAP do not mark:
-  an IMAP keyword is an ASCII atom, so `ec/à-compléter` cannot be one, and a second
+  an IMAP keyword is an ASCII atom, so `email-tool/à-compléter` cannot be one, and a second
   ASCII spelling of the same marker is a vocabulary nobody reads there yet.
 - `email_classifier/apply/status.py`: one status category per conversation, on its
   latest inbound message (STU-2007), under the policy flag `status_labels` and outside
   `auto_apply`, since it moves nothing. With apply only planning, a draft in Drafts or
   nothing was the whole trace, and nothing read the same as a failure. Six names:
-  `ec/brouillon` (a draft waits), `ec/à-compléter` (that draft carries the STU-2049
-  category), `ec/pas-de-réponse`, `ec/déjà-répondu` (a sent reply is newer than the mail,
-  or than the draft), `ec/à-toi` (a `content_hold`, or a reply the clamp dropped) and
-  `ec/erreur` (an undecided conversation, or a reply owed that has no draft and no sent
+  `email-tool/brouillon` (a draft waits), `email-tool/à-compléter` (that draft carries the STU-2049
+  category), `email-tool/pas-de-réponse`, `email-tool/déjà-répondu` (a sent reply is newer than the mail,
+  or than the draft), `email-tool/à-toi` (a `content_hold`, or a reply the clamp dropped) and
+  `email-tool/erreur` (an undecided conversation, or a reply owed that has no draft and no sent
   reply after drafting). The status is read off the mailbox once the drafting has run,
   through `conversation_verdict`, never off what the stage claims. The write is a state
   diff on these six names only: a human's category is never read or removed, the latest
   message's previous status is replaced, the thread's older messages lose theirs, and a
   message in the trash or elsewhere is left alone. Each write is journaled `ok` in the
   run's `logs/applied/<run_id>.jsonl` even while apply plans into `.plan.jsonl`, so
-  `make undo RUN_ID=` takes the statuses off. The executor resolves only `ec/<bucket>`,
+  `make undo RUN_ID=` takes the statuses off. The executor resolves only `email-tool/<bucket>`,
   so a status never reads as a filing, and the webhook refuses to start on a taxonomy
   whose bucket label would collide. Outlook only, refused at policy load elsewhere: an
   IMAP keyword is an ASCII atom and these names are accented, and Gmail has no thread

@@ -10,7 +10,7 @@ reads `drafts-pre` decides on (`conversation_verdict`), asked again once the fan
 done. A conversation owed a reply that still has neither is an error, whatever the
 stage said about it.
 
-These names are a set of their own, disjoint from `ec/<bucket>`: the executor resolves
+These names are a set of their own, disjoint from `email-tool/<bucket>`: the executor resolves
 only the taxonomy's buckets, so a status on a message never reads as a filing.
 
 Outlook only. The names are accented, which an IMAP keyword cannot carry (the reason
@@ -25,14 +25,14 @@ from email_classifier.core.contract import Taxonomy
 from email_classifier.orchestrate import conversation, drafts
 from email_classifier.orchestrate.report import EmailVerdict
 from email_classifier.placeholder import PLACEHOLDER_CATEGORY
-from email_classifier.providers import ELSEWHERE_LABEL, TRASH_LABEL, Writer
+from email_classifier.providers import ELSEWHERE_LABEL, LABEL_PREFIX, TRASH_LABEL, Writer
 
-DRAFTED = "ec/brouillon"
+DRAFTED = f"{LABEL_PREFIX}brouillon"
 TO_COMPLETE = PLACEHOLDER_CATEGORY
-NO_REPLY = "ec/pas-de-réponse"
-ANSWERED = "ec/déjà-répondu"
-YOURS = "ec/à-toi"
-ERROR = "ec/erreur"
+NO_REPLY = f"{LABEL_PREFIX}pas-de-réponse"
+ANSWERED = f"{LABEL_PREFIX}déjà-répondu"
+YOURS = f"{LABEL_PREFIX}à-toi"
+ERROR = f"{LABEL_PREFIX}erreur"
 
 STATUS_LABELS = (DRAFTED, TO_COMPLETE, NO_REPLY, ANSWERED, YOURS, ERROR)
 

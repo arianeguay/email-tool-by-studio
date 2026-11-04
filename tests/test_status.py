@@ -136,7 +136,7 @@ def test_a_failing_message_is_journaled_and_the_rest_continue(tmp_path):
 
 @pytest.mark.parametrize("name", status.STATUS_LABELS)
 def test_apply_never_reads_a_status_as_a_filing(name, tmp_path):
-    """The executor's state diff resolves only `ec/<bucket>`: a status on an archived
+    """The executor's state diff resolves only `email-tool/<bucket>`: a status on an archived
     message must not read as the bucket it was filed under, nor block a refiling."""
     writer = FakeWriter()
     writer.message_labels["m1"] = set()
@@ -145,7 +145,7 @@ def test_apply_never_reads_a_status_as_a_filing(name, tmp_path):
     apply_verdicts([verdict(bucket="B")], writer, make_policy(),
                    ApplyJournal(tmp_path / "apply.jsonl", "r"), TAXONOMY, dry_run=False)
 
-    assert {"ec/B", name} <= writer.labels_of("m1")
+    assert {"email-tool/B", name} <= writer.labels_of("m1")
 
 
 def _policy_file(tmp_path, body):

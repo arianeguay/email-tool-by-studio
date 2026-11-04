@@ -416,7 +416,7 @@ def test_apply_true_mutates_and_journals(apply_report, writer, tmp_path, monkeyp
 
     assert out["dry_run"] is False
     assert out["acted"] == 1
-    assert writer.labels_of("m1") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/B", PROCESSED_LABEL}
     assert {e["status"] for e in read_entries(tmp_path / "applied" / "run-1.jsonl")} == {"ok"}
 
 
@@ -463,7 +463,7 @@ def test_apply_archives_an_expired_conversation_an_earlier_report_decided(
         monkeypatch, capsys,
     )
 
-    assert writer.labels_of("old") == {"ec/A", PROCESSED_LABEL}
+    assert writer.labels_of("old") == {"email-tool/A", PROCESSED_LABEL}
     journaled = {e["message_id"] for e in read_entries(tmp_path / "applied" / "run-1.jsonl")}
     assert journaled == {"m1", "old"}
 

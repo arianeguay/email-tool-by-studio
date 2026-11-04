@@ -81,7 +81,7 @@ def test_run_with_apply_mutates_and_journals(tmp_path, writer):
 
     assert cli(tmp_path, "run", str(report), "--apply") == 0
 
-    assert writer.labels_of("m1") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/B", PROCESSED_LABEL}
     journaled = read_entries(tmp_path / "applied" / "run-1.jsonl")
     assert {e["status"] for e in journaled} == {"ok"}
 
@@ -240,7 +240,7 @@ def test_apply_proceeds_on_a_re_consented_outlook_grant(tmp_path, monkeypatch, w
 
     assert apply_email.main([*argv, "run", str(report), "--apply"]) == 0
 
-    assert writer.labels_of("m1") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/B", PROCESSED_LABEL}
 
 
 def test_undo_refuses_a_read_only_outlook_grant(tmp_path, monkeypatch, writer, capsys):
@@ -252,4 +252,4 @@ def test_undo_refuses_a_read_only_outlook_grant(tmp_path, monkeypatch, writer, c
     assert apply_email.main([*read_only, "undo", "run-1"]) == 1
 
     assert "Mail.ReadWrite" in capsys.readouterr().err
-    assert writer.labels_of("m1") == {"ec/B", PROCESSED_LABEL}
+    assert writer.labels_of("m1") == {"email-tool/B", PROCESSED_LABEL}

@@ -135,6 +135,7 @@ from email_classifier.orchestrate.stage2_client import (
     preflight_anonymize_scope,
 )
 from email_classifier.providers import (
+    bucket_label,
     can_draft,
     configured_mailbox,
     get_writer,
@@ -409,7 +410,7 @@ def create_app(
         drafts = StudioCliDrafter(provider=studio_provider, cwd=REPO_ROOT)
 
     if policy.status_labels:
-        clash = {f"ec/{b}" for b in taxonomy.buckets} & set(status.STATUS_LABELS)
+        clash = {bucket_label(b) for b in taxonomy.buckets} & set(status.STATUS_LABELS)
         if clash:
             raise RuntimeError(f"bucket label(s) {sorted(clash)} collide with a status "
                                "label: the executor would read a status as a filing")

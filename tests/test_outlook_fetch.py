@@ -225,7 +225,7 @@ class _Conversation:
         self._sent = list(sent_ids)
         self._page_size = page_size or len(turns) or 1
         self._folders = folders or {}  # id -> well-known folder name
-        self._categories = categories or {}  # id -> the ec/* names it carries
+        self._categories = categories or {}  # id -> the email-tool/* names it carries
         self.list_params = []
         self.folder_lookups = []
 
@@ -442,7 +442,7 @@ def test_a_deleted_junked_or_sent_message_is_not_one_to_classify():
 #
 # "Somebody threw it out" is only true of a message we did not trash ourselves.
 # Our own is the marker with no bucket category: apply trashes straight out of
-# the Inbox and strips any ec/<bucket> first, so a bucket in Deleted Items means
+# the Inbox and strips any email-tool/<bucket> first, so a bucket in Deleted Items means
 # a human moved on from a message we had filed in the Archive.
 
 
@@ -460,7 +460,7 @@ def _thread_with_a_trashed_opener(categories):
 def test_a_message_this_app_trashed_rejoins_its_conversation():
     """A reply can reconcile the thread back to a live bucket, and untrashing the
     half an earlier run threw out is what closes the split."""
-    session = _thread_with_a_trashed_opener(["ec/processed", "ec/deleted"])
+    session = _thread_with_a_trashed_opener(["email-tool/processed", "email-tool/deleted"])
 
     ids = outlook.OutlookFetcher(session).conversation_message_ids("t1")
 
@@ -473,8 +473,8 @@ def test_a_message_this_app_trashed_rejoins_its_conversation():
         # Never processed by this app: a human's deletion, start to finish.
         [],
         # Processed — but as keep_visible, which leaves exactly this state. Only
-        # `ec/deleted` separates it from a message this app threw out.
-        ["ec/processed"],
+        # `email-tool/deleted` separates it from a message this app threw out.
+        ["email-tool/processed"],
     ],
 )
 def test_a_message_a_human_threw_out_stays_out(categories):
@@ -489,7 +489,7 @@ def test_a_trashed_sibling_survives_the_fetch_that_reads_it_back():
     """The round trip, not either half: `conversation_message_ids` offers the id and
     `fetch_inputs_by_ids` reads it. Both drop Deleted Items, so both need the same
     exemption — testing them apart lets one take back what the other offered."""
-    session = _thread_with_a_trashed_opener(["ec/processed", "ec/deleted"])
+    session = _thread_with_a_trashed_opener(["email-tool/processed", "email-tool/deleted"])
     fetcher = outlook.OutlookFetcher(session)
 
     ids = fetcher.conversation_message_ids("t1")
@@ -499,8 +499,8 @@ def test_a_trashed_sibling_survives_the_fetch_that_reads_it_back():
 
 def test_a_message_a_human_deleted_is_dropped_by_the_read_back_too():
     """The window STU-988 closed is still closed: an id named by a notification whose
-    message a human threw out in the meantime carries no `ec/deleted`."""
-    session = _thread_with_a_trashed_opener(["ec/processed"])
+    message a human threw out in the meantime carries no `email-tool/deleted`."""
+    session = _thread_with_a_trashed_opener(["email-tool/processed"])
 
     inputs = outlook.OutlookFetcher(session).fetch_inputs_by_ids(["trashed", "reply"])
 

@@ -30,7 +30,7 @@ def test_dry_run_journals_the_plan_without_ok_entries(journal):
     entries = read_entries(journal.path)
     assert [(e["op"], e["label"], e["status"]) for e in entries] == [
         ("remove_label", "INBOX", "planned"),
-        ("add_label", "ec/B", "planned"),
+        ("add_label", "email-tool/B", "planned"),
         ("add_label", PROCESSED_LABEL, "planned"),
     ]
     assert {e["run_id"] for e in entries} == {"run"}
@@ -66,7 +66,7 @@ def test_applied_operations_are_journaled_in_order(journal):
 
     assert [(e["op"], e["label"], e["status"]) for e in read_entries(journal.path)] == [
         ("remove_label", "INBOX", "ok"),
-        ("add_label", "ec/B", "ok"),
+        ("add_label", "email-tool/B", "ok"),
         ("add_label", PROCESSED_LABEL, "ok"),
     ]
 

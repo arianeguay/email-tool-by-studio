@@ -113,7 +113,7 @@ def test_untrash_restores_a_trashed_message():
 def test_find_label_returns_none_without_creating():
     service = _Service(existing_labels=[{"id": "Label_1", "name": "other"}])
 
-    assert GmailWriter(service).find_label("ec/processed") is None
+    assert GmailWriter(service).find_label("email-tool/processed") is None
     assert service.labels.created == []
 
 

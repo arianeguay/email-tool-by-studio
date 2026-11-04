@@ -54,31 +54,31 @@ def test_resolving_a_label_calls_graph_at_all_never():
     """A category needs no registration, so neither call may touch the mailbox."""
     writer, session = _writer()
 
-    assert writer.find_label("ec/processed") == "ec/processed"
-    assert writer.ensure_label("ec/newsletter") == "ec/newsletter"
+    assert writer.find_label("email-tool/processed") == "email-tool/processed"
+    assert writer.ensure_label("email-tool/newsletter") == "email-tool/newsletter"
     assert session.calls == []
 
 
 def test_add_label_appends_to_the_existing_categories():
     writer, session = _writer(categories=["keepme"])
 
-    writer.add_label("m1", "ec/newsletter")
+    writer.add_label("m1", "email-tool/newsletter")
 
-    assert session.messages["m1"]["categories"] == ["keepme", "ec/newsletter"]
+    assert session.messages["m1"]["categories"] == ["keepme", "email-tool/newsletter"]
 
 
 def test_add_label_is_idempotent_and_issues_no_write():
-    writer, session = _writer(categories=["ec/newsletter"])
+    writer, session = _writer(categories=["email-tool/newsletter"])
 
-    writer.add_label("m1", "ec/newsletter")
+    writer.add_label("m1", "email-tool/newsletter")
 
     assert [c for c in session.calls if c[0] != "GET"] == []
 
 
 def test_remove_label_drops_only_that_category():
-    writer, session = _writer(categories=["keepme", "ec/newsletter"])
+    writer, session = _writer(categories=["keepme", "email-tool/newsletter"])
 
-    writer.remove_label("m1", "ec/newsletter")
+    writer.remove_label("m1", "email-tool/newsletter")
 
     assert session.messages["m1"]["categories"] == ["keepme"]
 
@@ -122,20 +122,20 @@ def test_no_call_ever_uses_the_delete_verb():
 def test_label_ids_reports_the_inbox_alongside_the_categories():
     """The executor diffs label and location on one axis (STU-963), and Gmail's
     `label_ids` has always answered INBOX the same way."""
-    writer, session = _writer(categories=["ec/processed"])
+    writer, session = _writer(categories=["email-tool/processed"])
 
-    assert writer.label_ids("m1") == ["ec/processed", "INBOX"]
+    assert writer.label_ids("m1") == ["email-tool/processed", "INBOX"]
 
     session.messages["m1"]["folder"] = "archive"
-    assert writer.label_ids("m1") == ["ec/processed"]
+    assert writer.label_ids("m1") == ["email-tool/processed"]
 
 
 def test_a_category_rewrite_never_folds_the_inbox_into_the_categories():
     writer, session = _writer(categories=["keepme"])
 
-    writer.add_label("m1", "ec/C")
+    writer.add_label("m1", "email-tool/C")
 
-    assert session.messages["m1"]["categories"] == ["keepme", "ec/C"]
+    assert session.messages["m1"]["categories"] == ["keepme", "email-tool/C"]
 
 
 def _policy():
@@ -172,7 +172,7 @@ def test_archive_then_undo_round_trips_the_mailbox(tmp_path):
 
     apply_verdicts([_verdict()], writer, _policy(), journal, TAXONOMY, dry_run=False)
     assert session.messages["m1"] == {
-        "categories": ["ec/C", "ec/processed"],
+        "categories": ["email-tool/C", "email-tool/processed"],
         "folder": "archive",
     }
 
@@ -205,9 +205,9 @@ def test_dry_run_mutates_nothing(tmp_path):
     "action,bucket,categories,folder",
     [
         # The state each action leaves behind, folder included: an archived message
-        # carries its bucket, a trashed one carries `ec/deleted` (STU-983).
-        ("label_archive", "C", ["ec/C", "ec/processed"], "archive"),
-        ("mark_for_delete", "D", ["ec/processed", "ec/deleted"], "deleteditems"),
+        # carries its bucket, a trashed one carries `email-tool/deleted` (STU-983).
+        ("label_archive", "C", ["email-tool/C", "email-tool/processed"], "archive"),
+        ("mark_for_delete", "D", ["email-tool/processed", "email-tool/deleted"], "deleteditems"),
     ],
 )
 def test_a_reapplied_run_skips_already_processed_messages(
@@ -234,13 +234,13 @@ _DUMPSTER = "recoverableitemsdeletions"
 def test_label_ids_reports_elsewhere_for_a_folder_we_never_file_to():
     """The folder axis has three answers. Categories alone used to mean both
     "archived" and "gone", and the executor read the second as the first."""
-    writer, session = _writer(categories=["ec/C", "ec/processed"], folder=_DUMPSTER)
+    writer, session = _writer(categories=["email-tool/C", "email-tool/processed"], folder=_DUMPSTER)
 
-    assert writer.label_ids("m1") == ["ec/C", "ec/processed", "ELSEWHERE"]
+    assert writer.label_ids("m1") == ["email-tool/C", "email-tool/processed", "ELSEWHERE"]
 
     # The Archive is in the table precisely so it keeps answering the other way.
     session.messages["m1"]["folder"] = "archive"
-    assert writer.label_ids("m1") == ["ec/C", "ec/processed"]
+    assert writer.label_ids("m1") == ["email-tool/C", "email-tool/processed"]
 
 
 def test_a_message_the_mailbox_no_longer_holds_is_not_applied_to(tmp_path):

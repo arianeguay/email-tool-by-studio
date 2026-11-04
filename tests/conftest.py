@@ -172,13 +172,13 @@ def inboxed(writer, *message_ids):
 
 def trashed(writer, message_id):
     """The state an applied `mark_for_delete` leaves behind: in the trash, carrying
-    the marker and `ec/deleted`. That label, not the absence of a bucket, is what
+    the marker and `email-tool/deleted`. That label, not the absence of a bucket, is what
     `providers.trashed_by_us` reads — a message applied as keep_visible is marked
     and unbucketed too."""
     writer.message_labels[message_id] = {
         "TRASH",
-        writer.ensure_label("ec/processed"),
-        writer.ensure_label("ec/deleted"),
+        writer.ensure_label("email-tool/processed"),
+        writer.ensure_label("email-tool/deleted"),
     }
     writer.ensure_calls.clear()
     return writer
@@ -188,8 +188,8 @@ def archived(writer, message_id, bucket):
     """The state an applied `label_archive` leaves behind: out of the Inbox,
     carrying its bucket label and the marker. What a later run diffs against."""
     writer.message_labels[message_id] = {
-        writer.ensure_label(f"ec/{bucket}"),
-        writer.ensure_label("ec/processed"),
+        writer.ensure_label(f"email-tool/{bucket}"),
+        writer.ensure_label("email-tool/processed"),
     }
     writer.ensure_calls.clear()
     return writer
