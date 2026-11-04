@@ -22,6 +22,7 @@ from email_classifier import club_memory, cost, prompt_sources
 from email_classifier.apply.gmail import GmailDrafter
 from email_classifier.apply.journal import read_entries
 from email_classifier.apply.outlook import OutlookDrafter
+from email_classifier.core.types import EmailInput
 from email_classifier.orchestrate import drafts
 from email_classifier.stage1.policy import load_policy
 from tests.conftest import requires_gliner, stub_detector
@@ -1126,6 +1127,93 @@ def test_a_thread_the_club_already_answered_is_not_answered_twice(
 
     assert out["needs_draft"] is False
     assert "m1: answered" in reported
+
+
+class _SentSource:
+    """Fake second mailbox's Sent folder (STU-2082)."""
+
+    def __init__(self, sent):
+        self.sent = sent
+        self.asked = []
+
+    def sent_to(self, correspondent, after):
+        self.asked.append((correspondent, after))
+        return [dict(m) for m in self.sent]
+
+
+def _with_sent_source(drafts_pre, tmp_path, monkeypatch, sent):
+    policy = write_policy(tmp_path)
+    data = yaml.safe_load(policy.read_text(encoding="utf-8"))
+    data["email"]["sent_sources"] = ["gmail"]
+    policy.write_text(yaml.safe_dump(data), encoding="utf-8")
+    source = _SentSource(sent)
+    monkeypatch.setattr(drafts_pre, "get_sent_source", lambda name: source)
+    return pre_ctx(tmp_path, policy=str(policy)), source
+
+
+def test_a_reply_sent_from_a_second_mailbox_holds_the_thread_as_answered(
+    drafts_pre, tmp_path, monkeypatch, capsys
+):
+    """STU-2082: the owner answered from the mailbox the deployment is moving away
+    from, whose replies this mailbox's Sent folder cannot see."""
+    ctx, source = _with_sent_source(drafts_pre, tmp_path, monkeypatch, [{
+        "date": "2026-06-12T09:00:00+00:00", "subject": "RE: Horaire des pratiques",
+        "in_reply_to": "<m1>", "references": "<m1>"}])
+
+    out, reported = run_script_stage_reported(drafts_pre, ctx, monkeypatch, capsys)
+
+    assert out["needs_draft"] is False
+    assert "m1: answered" in reported
+    assert source.asked == [("parent@example.ca", EMAIL["date"])]
+
+
+def test_a_second_mailbox_reply_older_than_the_mail_does_not_answer_it(
+    drafts_pre, tmp_path, monkeypatch, capsys
+):
+    ctx, _ = _with_sent_source(drafts_pre, tmp_path, monkeypatch, [{
+        "date": "2026-06-11T09:00:00+00:00", "subject": "Re: Horaire des pratiques",
+        "in_reply_to": "<m1>", "references": ""}])
+
+    out = run_script_stage(drafts_pre, ctx, monkeypatch, capsys)
+
+    assert [item["message_id"] for item in out["pending"]] == ["m1"]
+
+
+def test_a_draft_a_second_mailbox_replied_past_is_superseded(
+    drafts_pre, existing_drafts, tmp_path, monkeypatch, capsys
+):
+    existing_drafts.thread_ids = {"t1"}
+    ctx, _ = _with_sent_source(drafts_pre, tmp_path, monkeypatch, [{
+        "date": "2026-06-12T11:00:00+00:00", "subject": "Horaire des pratiques",
+        "in_reply_to": "", "references": ""}])
+
+    _, reported = run_script_stage_reported(drafts_pre, ctx, monkeypatch, capsys)
+
+    assert "m1: superseded" in reported
+
+
+def test_no_second_source_asks_nothing_of_one(drafts_pre, tmp_path, monkeypatch, capsys):
+    def refuse(name):
+        raise AssertionError("a policy naming no sent source opened one")
+
+    monkeypatch.setattr(drafts_pre, "get_sent_source", refuse)
+
+    out = run_script_stage(drafts_pre, pre_ctx(tmp_path), monkeypatch, capsys)
+
+    assert [item["message_id"] for item in out["pending"]] == ["m1"]
+
+
+def test_a_second_mailbox_reply_matches_on_its_thread_or_its_subject():
+    email = EmailInput(**EMAIL)
+    after = "2026-06-12T09:00:00+00:00"
+
+    def reply(subject="Autre sujet", in_reply_to="", references=""):
+        return {"date": after, "subject": subject, "in_reply_to": in_reply_to,
+                "references": references}
+
+    assert drafts.answered_elsewhere(email, [reply(references="<a> <m1>")]) == after
+    assert drafts.answered_elsewhere(email, [reply("TR: RE:  horaire des  PRATIQUES")]) == after
+    assert drafts.answered_elsewhere(email, [reply()]) is None
 
 
 def test_a_draft_a_human_replied_past_is_reported_not_rewritten(

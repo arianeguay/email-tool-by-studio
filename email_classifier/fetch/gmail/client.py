@@ -10,7 +10,7 @@ pagination logic and its tests run without the optional `[fetch]` deps installed
 
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from email_classifier.fetch import headers
@@ -328,3 +328,44 @@ class GmailFetcher:
             for message in thread.get("messages", [])
             if self._incoming(message.get("labelIds", []))
         ]
+
+
+_SENT_HEADERS = ["Subject", "In-Reply-To", "References"]
+
+
+class GmailSentSource:
+    """The Sent folder of a Gmail mailbox read as a second, read-only record of
+    replies (STU-2082): a deployment moving to another mailbox still answers from
+    this one for a while, and its own Sent folder cannot see those replies."""
+
+    def __init__(self, service):
+        self._service = service
+
+    def sent_to(self, correspondent: str, after: str) -> list[dict]:
+        """Every message sent to `correspondent` after the instant `after`.
+
+        Gmail's `after:` takes epoch seconds as well as a date, so the bound is exact
+        here, unlike the fetch's (`_bounded`). The date is Gmail's own `internalDate`,
+        not the `Date` header a client wrote.
+        """
+        epoch = int(datetime.fromisoformat(after.replace("Z", "+00:00")).timestamp())
+        query = f"in:sent to:{correspondent} after:{epoch}"
+        sent = []
+        for message_id in _list_message_ids(self._service, query, _PAGE_SIZE):
+            raw = (
+                self._service.users()
+                .messages()
+                .get(userId="me", id=message_id, format="metadata",
+                     metadataHeaders=_SENT_HEADERS)
+                .execute()
+            )
+            by_name = {h["name"].lower(): h["value"]
+                       for h in raw.get("payload", {}).get("headers", [])}
+            sent.append({
+                "date": datetime.fromtimestamp(int(raw["internalDate"]) / 1000,
+                                               tz=timezone.utc).isoformat(),
+                "subject": by_name.get("subject", ""),
+                "in_reply_to": by_name.get("in-reply-to", ""),
+                "references": by_name.get("references", ""),
+            })
+        return sent

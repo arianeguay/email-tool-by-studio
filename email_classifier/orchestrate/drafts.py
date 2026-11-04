@@ -350,6 +350,43 @@ def _at(timestamp: str) -> datetime:
     return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
 
 
+_REPLY_PREFIX = re.compile(r"^\s*((re|tr|fw|fwd|réf)\s*:\s*)+", re.IGNORECASE)
+
+
+def normalized_subject(subject: str) -> str:
+    """A subject without its reply/forward prefixes, case and spacing."""
+    return " ".join(_REPLY_PREFIX.sub("", subject or "").split()).casefold()
+
+
+def answered_elsewhere(email, sent: list[dict]) -> str | None:
+    """When a second mailbox last replied to `email`, or None (STU-2082).
+
+    A reply threads on the email when its `In-Reply-To` or `References` names it. That
+    needs the RFC `Message-ID`, which only an IMAP deployment carries as `message_id`;
+    elsewhere the id is the provider's own and the subject is the only link. Failing
+    that, a reply to the same correspondent with the same subject counts: Gmail writes
+    its own headers, and the thread may have reached it under another id. Only replies
+    after the email answer it; `sent` already holds no other, and this holds that.
+    """
+    latest = None
+    for message in sent:
+        if _at(message["date"]) <= _at(email.date):
+            continue
+        threaded = email.message_id and (
+            email.message_id in message["in_reply_to"]
+            or email.message_id in message["references"])
+        if threaded or normalized_subject(message["subject"]) == normalized_subject(email.subject):
+            if latest is None or _at(message["date"]) > _at(latest):
+                latest = message["date"]
+    return latest
+
+
+def latest_sent(*dates: str | None) -> str | None:
+    """The most recent of several `last_sent` readings, None when none has one."""
+    present = [d for d in dates if d]
+    return max(present, key=_at) if present else None
+
+
 def edited_since(last_modified: str, journaled_at: str) -> bool:
     """Whether a human has touched the draft that journal row created.
 
