@@ -1,12 +1,13 @@
 name: calendar
-description: Read appointments out of classified mail and plan calendar events; writes no calendar.
+description: Read appointments out of classified mail, plan calendar events, write them to Home Assistant under `apply`.
 version: 1
 
 # STU-2089, shaped like `drafts`: `calendar-pre` picks the report rows whose subtype the
 # policy's `calendar:` block lists, `calendar-fanout` runs `appointment-extract` once per
 # message, `calendar-post` checks each extraction and appends the plan to
-# `logs/calendar/events.jsonl`. A policy with no block makes `calendar-pre` hand over
-# nothing, so the fan-out is skipped.
+# `logs/calendar/events.jsonl`, then writes every unsettled planned row to Home
+# Assistant when the input says `apply: true` (STU-2090). A policy with no block makes
+# `calendar-pre` hand over nothing, so the fan-out is skipped.
 stages:
   - name: calendar-pre
     kind: calendar
