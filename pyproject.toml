@@ -52,6 +52,11 @@ fetch-outlook = [
     "msal>=1.28",
     "requests>=2.31",
 ]
+# Move and delete of a calendar event exist only on Home Assistant's websocket API
+# (STU-2090); the suite fakes the transport, so the hermetic job never installs it.
+home-assistant = [
+    "websocket-client>=1.7",
+]
 webhook = [
     "email-tool-by-studio[fetch]",
     "flask>=3.0",

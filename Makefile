@@ -473,7 +473,7 @@ deploy-webhook:      ## Reinstall, restart and verify the webhook on the checkou
 	# A deployment pins the kernel as a submodule: the pin the merge brought, checked out
 	# before anything installs from it. A no-op where the kernel is this checkout.
 	$(AS_SERVICE) git submodule update --init
-	$(AS_SERVICE) $(PYTHON) -m pip install -e "$(KERNEL)[webhook,fetch-outlook,ner]"
+	$(AS_SERVICE) $(PYTHON) -m pip install -e "$(KERNEL)[webhook,fetch-outlook,ner,home-assistant]"
 	$(MAKE) install-webhook-service
 	sudo systemctl restart email-classifier-webhook
 	# Exit 1 is a quiet mailbox, which says nothing about the deploy; 6 and 7 are the

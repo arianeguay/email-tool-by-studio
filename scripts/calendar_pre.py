@@ -9,8 +9,9 @@ Otherwise the report rows whose subtype the block lists, minus the message ids
 with the batch keymap like `drafts-pre` does, so a person keeps the token the
 classification stage gave them.
 
-Input:  { "corpus": "<dir|json>", "report": "<report path>", ...path overrides }
-Output: { "run_id", "enabled", "needs_extract", "selected", "already_handled",
+Input:  { "corpus": "<dir|json>", "report": "<report path>", "apply": true|false,
+          ...path overrides }
+Output: { "run_id", "enabled", "apply", "needs_extract", "selected", "already_handled",
           "pending", "paths" }
 """
 
@@ -104,6 +105,7 @@ def main() -> None:
     json.dump({
         "run_id": report["run_id"],
         "enabled": calendar is not None,
+        "apply": ctx.get("apply") is True,
         "needs_extract": bool(pending),
         "selected": selected,
         "already_handled": handled_count,

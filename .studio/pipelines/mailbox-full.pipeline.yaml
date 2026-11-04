@@ -49,10 +49,12 @@ stages:
       provider: "{{input.provider}}"
 
   # Appointments read out of the classified mail and planned as calendar events
-  # (STU-2089). Tolerated like `drafts` for the same reason, and a no-op on a policy
-  # with no `calendar:` block. It plans and writes no calendar.
+  # (STU-2089), written to Home Assistant under the same `apply` gate as the mailbox
+  # (STU-2090). Tolerated like `drafts` for the same reason, and a no-op on a policy
+  # with no `calendar:` block.
   - call: calendar
     on_failure: continue
     input:
       corpus: "{{stages.fetch.output.dump_path}}"
       report: "{{stages.classify-batch.output.report_path}}"
+      apply: "{{input.apply}}"
