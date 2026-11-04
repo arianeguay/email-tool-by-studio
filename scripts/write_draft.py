@@ -104,7 +104,10 @@ def main() -> None:
     commitments.record_draft(commitments.path_beside(journal), run_id, thread_id,
                              result["draft_id"], body)
     print(f"[write-draft] {thread_id} -> {result['draft_id']}", file=sys.stderr)
-    json.dump({**draft, "draft_id": result["draft_id"]}, sys.stdout, ensure_ascii=False)
+    # The model echoes the thread id back and can mis-copy it (STU-2074); the journal
+    # must name the conversation the draft was actually written to.
+    json.dump({**draft, "thread_id": thread_id, "draft_id": result["draft_id"]},
+              sys.stdout, ensure_ascii=False)
 
 
 def _humans_draft(drafter, thread_id: str, journal: Path) -> str | None:

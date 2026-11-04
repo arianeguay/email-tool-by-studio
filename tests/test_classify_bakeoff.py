@@ -178,3 +178,15 @@ def test_a_measured_pass_says_so():
     result = bakeoff.compare(arm("base", GOOD, GOOD), arm("cand", GOOD, GOOD), LABELS)
     assert result.measured
     assert "at least as good as" in bakeoff.render(result)
+
+
+def test_a_candidate_provider_moves_the_candidate_arm_only():
+    """STU-1767: a local model scored against the hosted pin needs a provider per arm."""
+    from tests.test_drafts import load_script
+
+    harness = load_script("classify_bakeoff")
+    shared = harness.parse_args(["--provider", "claude-code"])
+    split = harness.parse_args(["--provider", "claude-code", "--candidate-provider", "ollama"])
+
+    assert harness.arm_providers(shared) == ("claude-code", "claude-code")
+    assert harness.arm_providers(split) == ("claude-code", "ollama")
