@@ -6,6 +6,7 @@ server sends, so `ImapSession`'s parsing runs for real and no network is opened.
 Its folder list and capabilities are the ones Migadu reported on 2026-11-03.
 """
 
+import imaplib
 import re
 from datetime import datetime
 from email.message import EmailMessage
@@ -424,3 +425,34 @@ def test_the_unsubscribe_reads_sender_and_headers_without_marking_seen(imap):
     assert headers["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
     assert imap.where("m1")[1]["flags"] == set()
     assert writer.sender_and_headers("gone") is None
+
+
+class RateLimitedImap(FakeImap):
+    """Answers the first `limited` searches the way Migadu does past 60 a minute."""
+
+    def __init__(self, limited):
+        super().__init__()
+        self.limited = limited
+
+    def uid(self, command, *args):
+        if command == "SEARCH" and self.limited:
+            self.limited -= 1
+            return "NO", [b"search rate limit exceeded: 60 searches in 1m0s, please wait 33s before trying again"]
+        return super().uid(command, *args)
+
+
+def test_a_rate_limited_search_waits_what_the_server_asks_then_retries(monkeypatch):
+    waits = []
+    monkeypatch.setattr("email_classifier.fetch.imap.session.time.sleep", waits.append)
+    imap = RateLimitedImap(limited=1)
+    uid = imap.add("INBOX", _mail("m1"))
+    assert _session(imap).search("INBOX", "ALL") == [str(uid)]
+    assert waits == [34]
+
+
+def test_a_search_still_limited_after_its_retries_fails(monkeypatch):
+    waits = []
+    monkeypatch.setattr("email_classifier.fetch.imap.session.time.sleep", waits.append)
+    with pytest.raises(imaplib.IMAP4.error, match="search rate limit exceeded"):
+        _session(RateLimitedImap(limited=3)).search("INBOX", "ALL")
+    assert len(waits) == 2
