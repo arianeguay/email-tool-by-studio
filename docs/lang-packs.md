@@ -71,6 +71,7 @@ A pack may omit these; the consumer degrades to an empty collection.
 | --- | --- | --- |
 | `name_line` | `anonymize._NAME_LINE` | The regex for "one to three capitalized words alone on a line" that `_signature_spans` reads as a candidate name. The character classes (`[A-ZÀ-Ý]`, `[a-zà-ÿ'’-]`) are Latin-1-accent French; a language with a different alphabet needs its own. |
 | `elision_prefixes` | folded into `anonymize._KEPT` at load | The elided clitics a detector hands back on their own (French `j'`, `l'`, `qu'`...). Kept apart from `stopwords` because they are a distinct linguistic phenomenon (elision), not ordinary function words — merged into the same veto set at load time either way. |
+| `weekdays` | `calendar_plan._WEEKDAY_INDEX` | The seven day names, Monday first. `calendar-post` accepts a stated weekday in English or in these, then checks it against the date. |
 | `greeting_openers` | `draft_delta._GREETING` | Sentence-opening greetings (`bonjour`, `hello`) `draft_delta.answer_part` strips before measuring how much of a reply is the actual answer. |
 | `draft_closing_openers` | `draft_delta._CLOSING` | Sentence-opening sign-offs (`cordialement`, `sincerely`) the same extractor strips. Distinct from `closing_formulas` above: different regex shape (a whole-line prefix match, not an anchored whole-line match), and a different consumer (`draft_delta` measures edit distance, `anonymize` gates a name). |
 

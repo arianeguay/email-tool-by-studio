@@ -21,6 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from email_classifier import lang
 from email_classifier.anonymize import deanonymize
 from email_classifier.stage1.policy import CalendarPolicy
 
@@ -44,6 +45,9 @@ CREATE, MOVE, DELETE, NONE = "create", "move", "delete", "none"
 PLANNED = "planned"
 
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+# A model told to answer in English still copies `jeudi` from a French message.
+_WEEKDAY_INDEX = {name: i for names in (_WEEKDAYS, lang.deployment_config().get("weekdays", ()))
+                  for i, name in enumerate(names)}
 _DATE = re.compile(r"(?:(\d{4})-)?(\d{2})-(\d{2})")
 _TIME = re.compile(r"([01]\d|2[0-3]):([0-5]\d)")
 
@@ -139,9 +143,9 @@ def _localize(day: date, written, zone: ZoneInfo) -> datetime:
 def _check_weekday(day: date, weekday) -> None:
     if weekday in (None, ""):
         return
-    if weekday not in _WEEKDAYS:
-        raise Refused(f"weekday {weekday!r} is not an English day name")
-    if _WEEKDAYS[day.weekday()] != weekday:
+    if weekday not in _WEEKDAY_INDEX:
+        raise Refused(f"weekday {weekday!r} is not a day name")
+    if _WEEKDAY_INDEX[weekday] != day.weekday():
         raise Refused(f"the message says {weekday} but {day.isoformat()} is a "
                       f"{_WEEKDAYS[day.weekday()]}")
 
