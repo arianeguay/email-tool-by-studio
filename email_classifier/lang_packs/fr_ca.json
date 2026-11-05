@@ -341,6 +341,7 @@
     "s",
     "t"
   ],
+  "weekdays": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
   "greeting_openers": [
     "bonjour",
     "bonsoir",

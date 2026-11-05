@@ -190,7 +190,8 @@ def test_pre_refuses_a_subtype_the_taxonomy_lacks(tmp_path, monkeypatch, capsys)
     ({"date_evidence": "le jeudi 5 novembre"}, "date_evidence"),
     ({"date_evidence": ""}, "date_evidence"),
     ({"weekday": "thursday"}, "is a wednesday"),
-    ({"weekday": "mercredi"}, "English day name"),
+    ({"weekday": "jeudi"}, "is a wednesday"),
+    ({"weekday": "miércoles"}, "not a day name"),
     ({"date": "4 novembre"}, "YYYY-MM-DD"),
     ({"date": "2026-02-30"}, "calendar date"),
     ({"start_time": None}, "HH:MM"),
@@ -208,6 +209,11 @@ def test_each_refusal_lands_in_review_not_the_plan(overrides, reason):
 
 def test_evidence_matches_across_case_and_whitespace():
     planned, _, review = run_plan([item()], [extraction(date_evidence="LE MERCREDI  4 novembre\nà 14h00")])
+    assert review == [] and len(planned) == 1
+
+
+def test_a_weekday_in_the_message_language_is_accepted():
+    planned, _, review = run_plan([item()], [extraction(weekday="mercredi")])
     assert review == [] and len(planned) == 1
 
 
