@@ -376,6 +376,8 @@ def test_post_writes_both_journals_and_a_rerun_plans_nothing_twice(
     tmp_path, monkeypatch, capsys
 ):
     post = load_script("calendar_post")
+    sent = []
+    monkeypatch.setattr(post.alerts, "notify", sent.append)
     paths = {"policy": str(write_policy(tmp_path, {"subtypes": ["recital_confirmation"],
                                                    "entity": "calendar.studio"})),
              "keymap": str(tmp_path / "keymap.json"),
@@ -394,6 +396,10 @@ def test_post_writes_both_journals_and_a_rerun_plans_nothing_twice(
     assert (out["planned"], out["review"], out["failed"]) == (1, 1, 0)
     assert [r["message_id"] for r in cp.read_rows(Path(paths["events"]))] == ["m1"]
     assert [r["message_id"] for r in cp.read_rows(Path(paths["review"]))] == ["m2"]
+    # STU-2116: the refusal is alerted, not just written to the review file.
+    [alert] = sent
+    assert "1 appointment(s) went to review" in alert
+    assert "booking@example-music.test · Essai: low confidence" in alert
     # STU-2105: the fan-out's spend, on the line `audit_run.py cost` reads.
     [line] = cp.read_rows(Path(paths["stage_log"]))
     assert (line["run_id"], line["stage"], line["status"]) == ("run-1", "calendar", "completed")
@@ -404,6 +410,24 @@ def test_post_writes_both_journals_and_a_rerun_plans_nothing_twice(
     report = {"verdicts": [{"message_id": m, "status": "ok",
                             "subtype": "recital_confirmation"} for m in ("m1", "m2")]}
     assert cp.targets(report, CAL.subtypes, handled) == []
+
+
+def test_post_with_no_refusal_sends_no_alert(tmp_path, monkeypatch, capsys):
+    post = load_script("calendar_post")
+    sent = []
+    monkeypatch.setattr(post.alerts, "notify", sent.append)
+    paths = {"policy": str(write_policy(tmp_path, {"subtypes": ["recital_confirmation"],
+                                                   "entity": "calendar.studio"})),
+             "keymap": str(tmp_path / "keymap.json"),
+             "events": str(tmp_path / "events.jsonl"), "review": str(tmp_path / "review.jsonl"),
+             "stage_log": str(tmp_path / "stages.jsonl")}
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"previous_outputs": {
+        "calendar-pre": {"run_id": "run-1", "pending": [item()], "paths": paths},
+        "calendar-fanout": {"results": [
+            {"index": 0, "status": "success", "output": extraction()}]}}})))
+    post.main()
+    assert json.loads(capsys.readouterr().out)["planned"] == 1
+    assert sent == []
 
 
 def test_post_with_nothing_pending_writes_nothing(tmp_path, monkeypatch, capsys):

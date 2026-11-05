@@ -5,6 +5,7 @@ Script executor interface: reads JSON from stdin, writes JSON to stdout.
 
 `calendar_plan.plan` does the work; this reads the fan-out, writes the rows it returns to
 `logs/calendar/events.jsonl` and `logs/calendar/review.jsonl`, and prints the plan.
+A run that adds review rows sends one alert listing them (STU-2116).
 
 Then every planned row not yet settled, this run's and any an earlier dry run left, goes
 to Home Assistant when `calendar-pre` carries `apply: true` (STU-2090), each outcome
@@ -27,12 +28,23 @@ from pathlib import Path
 from email_classifier import alerts, calendar_plan, cost
 from email_classifier.apply.draft_journal import COMPLETED
 from email_classifier.apply import home_assistant
-from email_classifier.anonymize import load_keymap
+from email_classifier.anonymize import deanonymize, load_keymap
 from email_classifier.orchestrate import batch
 from email_classifier.stage1.policy import load_policy
 
 _PRE_STAGE = "calendar-pre"
 _FANOUT_STAGE = "calendar-fanout"
+
+
+def _review_alert(review: list[dict], pending: list[dict], keymap: dict[str, str]) -> str:
+    # `calendar-pre` skips a reviewed message from then on, so this alert is its only trace.
+    items = {item["message_id"]: item for item in pending}
+    lines = [f"calendar: {len(review)} appointment(s) went to review, not the calendar"]
+    for row in review:
+        item = items[row["message_id"]]
+        lines.append(deanonymize(f"- {item['from_address']} · {item['subject']}: {row['reason']}",
+                                 keymap))
+    return "\n".join(lines)
 
 
 def main() -> None:
@@ -48,11 +60,14 @@ def main() -> None:
         results = batch.results_by_index(fanout)
         failed = sum(1 for index in range(len(pre["pending"]))
                      if results.get(index, {}).get("status") != "success")
+        keymap = load_keymap(Path(paths["keymap"]))
         plan, events, review = calendar_plan.plan(
             pre["pending"], results, calendar_plan.read_rows(events_path), calendar,
-            load_keymap(Path(paths["keymap"])), pre["run_id"])
+            keymap, pre["run_id"])
         calendar_plan.append_rows(events_path, events)
         calendar_plan.append_rows(review_path, review)
+        if review:
+            alerts.notify(_review_alert(review, pre["pending"], keymap))
         # As in `drafts-post`: a resumed item was bought by an earlier attempt, and a
         # fan-out that handed nothing back still dispatched every item, priced as a floor.
         items = results.values() if fanout is not None else [{} for _ in pre["pending"]]
