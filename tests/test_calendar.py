@@ -374,7 +374,8 @@ def test_post_writes_both_journals_and_a_rerun_plans_nothing_twice(
                                                    "entity": "calendar.studio"})),
              "keymap": str(tmp_path / "keymap.json"),
              "events": str(tmp_path / "cal" / "events.jsonl"),
-             "review": str(tmp_path / "cal" / "review.jsonl")}
+             "review": str(tmp_path / "cal" / "review.jsonl"),
+             "stage_log": str(tmp_path / "cal" / "stages.jsonl")}
     pre = {"run_id": "run-1", "pending": [item("m1"), item("m2")], "paths": paths}
     fanout = {"results": [
         {"index": 0, "status": "success", "output": extraction()},
@@ -387,6 +388,10 @@ def test_post_writes_both_journals_and_a_rerun_plans_nothing_twice(
     assert (out["planned"], out["review"], out["failed"]) == (1, 1, 0)
     assert [r["message_id"] for r in cp.read_rows(Path(paths["events"]))] == ["m1"]
     assert [r["message_id"] for r in cp.read_rows(Path(paths["review"]))] == ["m2"]
+    # STU-2105: the fan-out's spend, on the line `audit_run.py cost` reads.
+    [line] = cp.read_rows(Path(paths["stage_log"]))
+    assert (line["run_id"], line["stage"], line["status"]) == ("run-1", "calendar", "completed")
+    assert line["tokens"]["llm_calls"] == 2
 
     handled = cp.handled_message_ids(cp.read_rows(Path(paths["events"])),
                                      cp.read_rows(Path(paths["review"])))
@@ -398,9 +403,11 @@ def test_post_writes_both_journals_and_a_rerun_plans_nothing_twice(
 def test_post_with_nothing_pending_writes_nothing(tmp_path, monkeypatch, capsys):
     post = load_script("calendar_post")
     paths = {"policy": str(write_policy(tmp_path)), "keymap": "",
-             "events": str(tmp_path / "events.jsonl"), "review": str(tmp_path / "review.jsonl")}
+             "events": str(tmp_path / "events.jsonl"), "review": str(tmp_path / "review.jsonl"),
+             "stage_log": str(tmp_path / "stages.jsonl")}
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"previous_outputs": {
         "calendar-pre": {"run_id": "run-1", "pending": [], "paths": paths}}})))
     post.main()
     assert json.loads(capsys.readouterr().out)["plan"] == []
     assert not (tmp_path / "events.jsonl").exists()
+    assert not (tmp_path / "stages.jsonl").exists()
