@@ -7,13 +7,14 @@
     python scripts/audit_run.py rules   [--report ...] [--rules ...] [--corpus fixtures ...]
         (--rules defaults to the rule set the run pinned, recovered from git, STU-913)
     python scripts/audit_run.py cost    [--report ...] [--drafts-log logs/drafts/stages.jsonl]
+        [--calendar-log logs/calendar/stages.jsonl]
         [--studio-log .studio/runs/<log>.jsonl]  (the fallback for a pre-STU-1012 run)
     python scripts/audit_run.py recall  [--report ...] [--keymap logs/anonymization/keymap.json]
         [--studio-log .studio/runs/<log>.jsonl ...]  (the fallback for a pre-STU-1036 run)
     python scripts/audit_run.py drafts  [--run <run-id>] [--draft-journal logs/drafts/journal.jsonl]
         (--run defaults to the run the report names)
     python scripts/audit_run.py call-floor [--report ...] [--studio-log .studio/runs/<log>.jsonl]
-        [--drafts-log logs/drafts/stages.jsonl]
+        [--drafts-log logs/drafts/stages.jsonl] [--calendar-log logs/calendar/stages.jsonl]
     python scripts/audit_run.py reviewed [--report ...] [--studio-log .studio/runs/<log>.jsonl ...]
         [--draft-journal logs/drafts/journal.jsonl] [--facts]
         (reads the mailbox: what the reviewer sent against what the drafter wrote)
@@ -565,6 +566,12 @@ def _call_floor(args, report_path: Path, report: dict) -> int:
                    *_reported_drafts(args.drafts_log, drafts, run_id),
                    drafts, logs, {"unrecorded_leg_executions": unrecorded}),
     ]
+    # Only a run that read appointments has the leg; a row for the rest would read as
+    # an unmeasured leg rather than an absent one.
+    if (calendar := cost.calendar_leg(args.calendar_log, run_id)) is not None:
+        rows.append(_leg_floor(cost.CALENDAR_LEG, cost.CALENDAR_AGENT_STAGES,
+                               *_reported_drafts(args.calendar_log, calendar, run_id),
+                               calendar, logs, {}))
     print(json.dumps({
         "report": str(report_path),
         "studio_logs": [str(p) for p in logs],
@@ -714,6 +721,8 @@ def _own_legs(args, report: dict, run_id: str) -> dict[str, dict]:
         legs[cost.CLASSIFY_LEG] = classify
     if (drafting := cost.drafts_leg(args.drafts_log, run_id)) is not None:
         legs[cost.DRAFTS_LEG] = drafting
+    if (calendar := cost.calendar_leg(args.calendar_log, run_id)) is not None:
+        legs[cost.CALENDAR_LEG] = calendar
     return legs
 
 
@@ -924,6 +933,9 @@ def main() -> int:
     parser.add_argument("--skipped", type=Path, default=Path("audits/skipped.json"))
     parser.add_argument("--drafts-log", type=Path, default=Path("logs/drafts/stages.jsonl"),
                         help="where the drafts stage recorded what its fan-out spent")
+    parser.add_argument("--calendar-log", type=Path,
+                        default=Path("logs/calendar/stages.jsonl"),
+                        help="where the calendar stage recorded what its fan-out spent")
     parser.add_argument("--draft-journal", type=Path,
                         default=Path("logs/drafts/journal.jsonl"),
                         help="the shared per-draft journal every run appends to")

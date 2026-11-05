@@ -13,7 +13,7 @@ classification stage gave them.
 Input:  { "corpus": "<dir|json>", "report": "<report path>", "apply": true|false,
           ...path overrides }
 Output: { "run_id", "enabled", "apply", "needs_extract", "selected", "already_handled",
-          "pending", "paths" }
+          "pending", "provider", "paths" }
 """
 
 import json
@@ -30,11 +30,13 @@ from email_classifier.anonymize import (
 from email_classifier.core.contract import load_taxonomy
 from email_classifier.eval.harness import load_corpus
 from email_classifier.orchestrate.pipeline import dedupe_by_message
+from email_classifier.orchestrate.provenance import resolved_provider
 from email_classifier.providers import can_draft, get_body_fetcher
 from email_classifier.stage1.policy import load_policy
 from email_classifier.stage1.rule_engine import load_rules
 
 REPO_ROOT = deployment.ROOT
+STUDIO_DIR = REPO_ROOT / ".studio"
 _ITEM_FIELDS = ("message_id", "thread_id", "from_address", "subject", "date")
 
 
@@ -120,6 +122,7 @@ def main() -> None:
         "selected": selected,
         "already_handled": handled_count,
         "pending": pending,
+        "provider": resolved_provider(STUDIO_DIR, ctx.get("provider"), "appointment-reader"),
         "paths": paths,
     }, sys.stdout, ensure_ascii=False)
 
