@@ -11,15 +11,21 @@ to Home Assistant when `calendar-pre` carries `apply: true` (STU-2090), each out
 appended to the same journal. Otherwise each is printed and nothing is sent or appended.
 A write that fails exits non-zero once the journal holds every outcome, like `apply`.
 
+What the fan-out spent goes on a `completed` line of `logs/calendar/stages.jsonl`
+(STU-2105), the shape `drafts-post` writes, so `audit_run.py cost` can add the leg. A
+run with nothing to read writes no line: no calendar leg, never a zero one.
+
 Output: { "run_id", "planned", "review", "failed", "plan", "dry_run", "written",
           "events_path", "review_path" }
 """
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
-from email_classifier import alerts, calendar_plan
+from email_classifier import alerts, calendar_plan, cost
+from email_classifier.apply.draft_journal import COMPLETED
 from email_classifier.apply import home_assistant
 from email_classifier.anonymize import load_keymap
 from email_classifier.orchestrate import batch
@@ -38,7 +44,8 @@ def main() -> None:
     plan, review, failed = [], [], 0
     if pre["pending"]:
         calendar = load_policy(Path(paths["policy"])).calendar
-        results = batch.results_by_index(outputs.get(_FANOUT_STAGE))
+        fanout = outputs.get(_FANOUT_STAGE)
+        results = batch.results_by_index(fanout)
         failed = sum(1 for index in range(len(pre["pending"]))
                      if results.get(index, {}).get("status") != "success")
         plan, events, review = calendar_plan.plan(
@@ -46,6 +53,13 @@ def main() -> None:
             load_keymap(Path(paths["keymap"])), pre["run_id"])
         calendar_plan.append_rows(events_path, events)
         calendar_plan.append_rows(review_path, review)
+        # As in `drafts-post`: a resumed item was bought by an earlier attempt, and a
+        # fan-out that handed nothing back still dispatched every item, priced as a floor.
+        items = results.values() if fanout is not None else [{} for _ in pre["pending"]]
+        spend = cost.leg((r for r in items if not r.get("cached")), pre.get("provider"))
+        calendar_plan.append_rows(Path(paths["stage_log"]), [{
+            "timestamp": datetime.now(timezone.utc).isoformat(), "run_id": pre["run_id"],
+            "stage": cost.CALENDAR_LEG, "status": COMPLETED, "tokens": spend}])
 
     print(f"[calendar-post] {len(plan)} planned | {len(review)} to review | {failed} failed",
           file=sys.stderr)

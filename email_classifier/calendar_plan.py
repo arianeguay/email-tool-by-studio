@@ -32,6 +32,7 @@ DEFAULT_PATHS = {
     "keymap": "logs/anonymization/keymap.json",
     "events": "logs/calendar/events.jsonl",
     "review": "logs/calendar/review.jsonl",
+    "stage_log": "logs/calendar/stages.jsonl",
 }
 
 CONFIRMATION, RESCHEDULE, CANCELLATION, NOT_APPOINTMENT = (

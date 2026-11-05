@@ -14,7 +14,9 @@ call belongs to:
 
 - **classify** — the stage-2 calls, into `reports/<run-id>.json` under `cost`;
 - **drafts** — the drafting fan-out, onto the `completed` line of
-  `logs/drafts/stages.jsonl` (STU-917).
+  `logs/drafts/stages.jsonl` (STU-917);
+- **calendar**: the appointment fan-out, onto the same kind of line in
+  `logs/calendar/stages.jsonl` (STU-2105). Only a run with a `calendar:` block has one.
 
 Two legs and not one, because each writer records only what it observed. A
 mailbox-full run spends most of its tokens drafting, so a report that also
@@ -61,6 +63,7 @@ _FIELDS = ("prompt_tokens", "cache_creation_tokens", "cached_input_tokens",
 # question asked of two sources, so the same key answers it.
 CLASSIFY_LEG = "classify"
 DRAFTS_LEG = "drafts"
+CALENDAR_LEG = "calendar"
 
 
 class UnknownModel(Exception):
@@ -126,6 +129,9 @@ DRAFTING_AGENT_STAGES = ("generate-draft", "draft-qa")
 
 # The same for a `classify` child: one agent stage, and the pipeline has no other.
 CLASSIFY_AGENT_STAGES = ("classify",)
+
+# And for an `appointment-extract` child.
+CALENDAR_AGENT_STAGES = ("appointment-extract",)
 
 # The stages a draft costs. Cost per *email* moves with how many conversations earned
 # a draft, which is a property of the mailbox; this is the half the pipeline controls,
@@ -502,6 +508,14 @@ def drafts_leg(stage_log: Path, run_id: str) -> dict | None:
             **({"unrecorded_items": sum(spend["unrecorded_items"] for spend in recorded)}
                if len(recorded) == len(priced) else {}),
             "by_model": {model: dict(counts) for model, counts in sorted(by_model.items())}}
+
+
+def calendar_leg(stage_log: Path, run_id: str) -> dict | None:
+    """The calendar leg, or None for a run that read no appointment.
+
+    `calendar-post` writes the line `drafts-post` does, so it folds the same way.
+    """
+    return drafts_leg(stage_log, run_id)
 
 
 def drafts_denominator(stage_log: Path, run_id: str) -> int | None:
