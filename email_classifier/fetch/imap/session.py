@@ -13,6 +13,7 @@ this module holds one across calls: the fetcher addresses a message by its
 import imaplib
 import os
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -21,6 +22,9 @@ INBOX = "INBOX"
 _LIST_LINE = re.compile(rb'\((?P<attrs>[^)]*)\) (?:"[^"]*"|NIL) (?P<name>"(?:\\.|[^"])*"|\S+)')
 _FETCH_META = re.compile(rb"UID (?P<uid>\d+)|FLAGS \((?P<flags>[^)]*)\)|INTERNALDATE \"(?P<date>[^\"]+)\"")
 _APPENDUID = re.compile(rb"APPENDUID \d+ (\d+)")
+# Migadu (2026-11-04): "search rate limit exceeded: 60 searches in 1m0s, please wait 33s before trying again"
+_SEARCH_LIMIT = re.compile(rb"search rate limit exceeded.*please wait (\d+)s")
+SEARCH_ATTEMPTS = 3
 
 
 @dataclass(frozen=True)
@@ -76,7 +80,13 @@ class ImapSession:
 
     def search(self, folder: str, *criteria: str) -> list[str]:
         self._select(folder)
-        data = _check(*self._conn.uid("SEARCH", None, *criteria))
+        for attempt in range(1, SEARCH_ATTEMPTS + 1):
+            typ, data = self._conn.uid("SEARCH", None, *criteria)
+            limited = typ == "NO" and _SEARCH_LIMIT.search(data[0] or b"")
+            if not limited or attempt == SEARCH_ATTEMPTS:
+                break
+            time.sleep(int(limited[1]) + 1)
+        data = _check(typ, data)
         return [uid.decode() for uid in (data[0] or b"").split()]
 
     def fetch(self, folder: str, uids: list[str]) -> list[RawMessage]:
