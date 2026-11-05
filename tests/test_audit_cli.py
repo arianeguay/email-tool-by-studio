@@ -82,7 +82,8 @@ def _run(monkeypatch, tmp_path, command, report, log=None, drafts_log=None, extr
     argv = ["audit_run.py", command, "--reports", str(reports),
             "--log", str(log or tmp_path / "frontier.jsonl"),
             # Never the repo's own: a run of this machine's could name run-1.
-            "--drafts-log", str(drafts_log or tmp_path / "stages.jsonl"), *extra]
+            "--drafts-log", str(drafts_log or tmp_path / "stages.jsonl"),
+            "--calendar-log", str(tmp_path / "calendar-stages.jsonl"), *extra]
     monkeypatch.setattr(audit_run.sys, "argv", argv)
     # The CLI reads the deployment's rules off its cwd.
     monkeypatch.chdir(deployment.ROOT)
@@ -475,11 +476,12 @@ def _spend(model="claude-opus-4-8", calls=1, **counts):
     return {"llm_calls": calls, "by_model": {model: counts}}
 
 
-def _cost(reports, runs, drafts=None):
-    # `--drafts-log` always: left at its default the command would read the real
-    # `logs/drafts/stages.jsonl` of whatever checkout the suite runs in.
+def _cost(reports, runs, drafts=None, calendar=None):
+    # Both stage logs always: left at their defaults the command would read the real
+    # `logs/*/stages.jsonl` of whatever checkout the suite runs in.
     return _cli("cost", "--reports", reports, "--runs-dir", runs,
-                "--drafts-log", drafts or (reports.parent / "absent.jsonl"))
+                "--drafts-log", drafts or (reports.parent / "absent.jsonl"),
+                "--calendar-log", calendar or (reports.parent / "absent.jsonl"))
 
 
 def test_cost_prices_a_run_from_the_log_that_names_it(tmp_path):
@@ -537,6 +539,40 @@ def test_cost_sums_the_drafting_leg_onto_the_classification_one(tmp_path):
     assert payload["by_stage"]["classify"]["usd"] == 6.25
     assert payload["by_stage"]["drafts"]["usd"] == 25.0
     assert payload["usd"] == 31.25
+
+
+def test_cost_adds_the_calendar_leg_beside_the_other_two(tmp_path):
+    # STU-2105: the appointment fan-out's spend was in no leg, so a run with a
+    # calendar block read cheaper than it was.
+    reports, runs = _cost_tree(
+        tmp_path, {}, cost={"classify": _spend(cache_creation_tokens=1_000_000)})
+    drafts, calendar = tmp_path / "stages.jsonl", tmp_path / "calendar.jsonl"
+    drafts.write_text(json.dumps({"run_id": "r1", "status": "completed",
+                                  "tokens": _spend(completion_tokens=1_000_000)}) + "\n",
+                      encoding="utf-8")
+    calendar.write_text(json.dumps({"run_id": "r1", "stage": "calendar", "status": "completed",
+                                    "tokens": _spend(calls=2, completion_tokens=200_000)}) + "\n",
+                        encoding="utf-8")
+    payload = json.loads(_cost(reports, runs, drafts, calendar).stdout)
+    assert payload["legs"] == ["calendar", "classify", "drafts"]
+    assert payload["by_stage"]["calendar"] == {"calls": 2, "total_tokens": 0, "usd": 5.0,
+                                               "cache_hit_ratio": None}
+    assert payload["usd"] == 36.25
+    assert payload["llm_calls"] == 4
+
+
+def test_cost_has_no_calendar_leg_for_a_run_that_read_no_appointment(tmp_path):
+    # Absent, never a zero: another run's line is not this one's.
+    reports, runs = _cost_tree(
+        tmp_path, {}, cost={"classify": _spend(completion_tokens=1_000_000)})
+    calendar = tmp_path / "calendar.jsonl"
+    calendar.write_text(json.dumps({"run_id": "other", "status": "completed",
+                                    "tokens": _spend(completion_tokens=1)}) + "\n",
+                        encoding="utf-8")
+    payload = json.loads(_cost(reports, runs, calendar=calendar).stdout)
+    assert payload["legs"] == ["classify"]
+    assert "calendar" not in payload["by_stage"]
+    assert payload["usd"] == 25.0
 
 
 def test_cost_sums_a_drafting_leg_that_ran_twice_under_one_run_id(tmp_path):
@@ -794,7 +830,7 @@ def _leg(payload, name):
 
 
 def _floor(tmp_path, events, calls=None, journal_rows=(), run_id="r1", extra_logs=None,
-           stage_rows=None, classify=None):
+           stage_rows=None, classify=None, calendar_rows=()):
     """A run's Studio journals, next to the legs it recorded — or to no leg at all."""
     logs = {"a.jsonl": events, **(extra_logs or {})}
     reports, runs = _cost_tree(tmp_path, logs, run_id=run_id,
@@ -813,9 +849,26 @@ def _floor(tmp_path, events, calls=None, journal_rows=(), run_id="r1", extra_log
             "run_id": run_id, "status": "completed",
             "tokens": _spend(calls=calls, completion_tokens=1),
         }) + "\n", encoding="utf-8")
+    calendar = tmp_path / "calendar.jsonl"
+    calendar.write_text("".join(json.dumps(r) + "\n" for r in calendar_rows), encoding="utf-8")
     result = _cli("call-floor", "--reports", reports, "--runs-dir", runs,
-                  "--draft-journal", journal, "--drafts-log", stages)
+                  "--draft-journal", journal, "--drafts-log", stages,
+                  "--calendar-log", calendar)
     return result, json.loads(result.stdout) if result.stdout else None
+
+
+def test_call_floor_measures_the_calendar_leg_only_when_the_run_has_one(tmp_path):
+    events = [*_drafting(),
+              {"event": "stage_start", "stage": "appointment-extract", "depth": 3},
+              {"event": "stage_retry", "stage": "appointment-extract", "depth": 3},
+              {"event": "stage_complete", "stage": "appointment-extract", "depth": 3,
+               "status": "success"}]
+    _, payload = _floor(tmp_path, events, calls=2)
+    assert [row["leg"] for row in payload["legs"]] == ["classify", "drafts"]
+    _, payload = _floor(tmp_path, events, calls=2, calendar_rows=[{
+        "run_id": "r1", "status": "completed", "tokens": _spend(calls=2, completion_tokens=1)}])
+    calendar = _leg(payload, "calendar")
+    assert (calendar["reported_calls"], calendar["journal_calls"]) == (2, 2)
 
 
 def test_call_floor_finds_no_gap_when_no_attempt_was_discarded(tmp_path):
