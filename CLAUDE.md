@@ -1753,6 +1753,13 @@ Consequences, each one tested:
   worktree and every attempt fails.
 - `scripts/classify_pre.py` / `scripts/classify_post.py`: the two script stages of
   `classify-batch`.
+  `classify-pre` keeps a conversation out of the fan-out once every message it escalates
+  has an errored stage-2 verdict in each of its last 3 reports (`orchestrate/set_aside.py`,
+  STU-2109): a message that wedges the model otherwise costs three 180 s attempts on every
+  poll, for ever. The streak is read from `reports/`, not from a second store; the report
+  records the message as an error tagged `set_aside_after_repeated_failures`, which
+  `check-unverdicted` keeps listing, and `llm_calls` does not count it. A new message in
+  the thread, or a report shelf prune, brings it back.
 - `scripts/drafts_pre.py` / `scripts/drafts_post.py`: the two script stages of `drafts`;
   `scripts/write_draft.py` is the third, the one that writes the draft into the mailbox
   (real Outlook drafts, never sent). It sits in `email-draft`, between `generate-draft`

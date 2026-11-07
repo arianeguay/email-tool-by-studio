@@ -10,6 +10,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from email_classifier.core.contract import Taxonomy, enum_and_consistency_errors
+from email_classifier.orchestrate.set_aside import SET_ASIDE_ERROR
 
 CATCH_ALL = "catch_all"
 
@@ -24,6 +25,8 @@ STAGE2_ERROR_TAGS = frozenset({
     # (STU-1016). A known tag, so an audit reads it as a named failure rather than as
     # a report carrying an error nothing recognises.
     "provider_unavailable",
+    # Kept out of the fan-out after repeated failed polls (STU-2109): no call was made.
+    SET_ASIDE_ERROR,
 })
 
 
@@ -34,7 +37,8 @@ def stage2_calls(verdicts: list[dict]) -> int:
     `llm_calls` existed still reports its real LLM cost rather than a missing key the
     auditor fills back in as a zero.
     """
-    return len({v.get("thread_id") for v in verdicts if v.get("path") == "llm"})
+    return len({v.get("thread_id") for v in verdicts
+                if v.get("path") == "llm" and v.get("error") != SET_ASIDE_ERROR})
 
 
 def check_report(report: dict, taxonomy: Taxonomy) -> list[str]:

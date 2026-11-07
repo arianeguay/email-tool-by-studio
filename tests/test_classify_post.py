@@ -154,3 +154,19 @@ def test_a_dead_fanout_leaves_a_report_with_an_empty_leg(classify_post, tmp_path
 
     assert report["cost"]["classify"]["llm_calls"] == 0
     assert report["verdicts"][0]["error"] == "studio_run_output_missing"
+
+
+def test_a_set_aside_conversation_is_an_error_verdict_and_no_call(
+        classify_post, tmp_path, monkeypatch, capsys):
+    """STU-2109: `classify-pre` kept it out of the fan-out, so it has no result index."""
+    stage1 = [{**_record("m2", "t2", True), "set_aside": True},
+              _record("m3", "t3", True, 0)]
+    fanout = {"results": [{"index": 0, "status": "success", "output": VERDICT}]}
+
+    report = _run(classify_post, _payload(tmp_path, stage1, fanout), monkeypatch, capsys)
+
+    by_id = {v["message_id"]: v for v in report["verdicts"]}
+    assert by_id["m2"]["status"] == "error"
+    assert by_id["m2"]["error"] == "set_aside_after_repeated_failures"
+    assert by_id["m3"]["error"] != "set_aside_after_repeated_failures"
+    assert report["totals"]["llm_calls"] == 1

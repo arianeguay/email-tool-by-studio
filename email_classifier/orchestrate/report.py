@@ -14,6 +14,8 @@ stays per message.
 
 from dataclasses import asdict, dataclass, field
 
+from email_classifier.orchestrate import set_aside
+
 
 @dataclass
 class EmailVerdict:
@@ -60,9 +62,11 @@ def stage2_calls(verdicts: list[EmailVerdict]) -> int:
     Derived rather than plumbed, because it is exact either way: `collapse` groups the
     escalated messages by `thread_id`, so the distinct threads on the LLM path *are* the
     calls — including for a report a fan-out assembled, and for one written before this
-    field existed. An errored verdict counts: the call was still made.
+    field existed. An errored verdict counts: the call was still made. A conversation
+    set aside (STU-2109) made none.
     """
-    return len({v.thread_id for v in verdicts if v.path == "llm"})
+    return len({v.thread_id for v in verdicts
+                if v.path == "llm" and v.error != set_aside.SET_ASIDE_ERROR})
 
 
 def build_report(

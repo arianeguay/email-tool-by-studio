@@ -44,9 +44,12 @@ def main() -> None:
         if not record["escalated"]:
             verdicts.append(batch.deterministic_verdict(record))
             continue
-        verdict = batch.llm_verdict(
-            record, results.get(record["escalation_index"]), keymap, taxonomy
-        )
+        if record.get("set_aside"):
+            verdict = batch.set_aside_verdict(record)
+        else:
+            verdict = batch.llm_verdict(
+                record, results.get(record["escalation_index"]), keymap, taxonomy
+            )
         verdicts.append(verdict)
         if verdict.status == "ok":
             store.record(
