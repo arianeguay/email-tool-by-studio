@@ -19,7 +19,7 @@ from email_classifier import prompt_sources
 from email_classifier.anonymize import Tokenizer, anonymize_fields, deanonymize
 from email_classifier.core.contract import Taxonomy, validate_classification
 from email_classifier.core.types import RuleMatch
-from email_classifier.orchestrate import conversation
+from email_classifier.orchestrate import conversation, set_aside
 from email_classifier.orchestrate.report import EmailVerdict
 
 # The head message's fields, as `classify` has always received them; the conversation
@@ -250,6 +250,11 @@ def _error_verdict(record: dict, error: str, detail: str | None) -> EmailVerdict
         error_detail=detail,
         date=record["date"],
     )
+
+
+def set_aside_verdict(record: dict) -> EmailVerdict:
+    """The verdict of a conversation `classify-pre` kept out of the fan-out (STU-2109)."""
+    return _error_verdict(record, set_aside.SET_ASIDE_ERROR, None)
 
 
 def llm_verdict(

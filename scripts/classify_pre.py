@@ -37,7 +37,7 @@ from email_classifier.anonymize import (
 )
 from email_classifier.core.types import RuleMatch
 from email_classifier.eval.harness import load_corpus
-from email_classifier.orchestrate import batch, composition, conversation
+from email_classifier.orchestrate import batch, composition, conversation, set_aside
 from email_classifier.orchestrate.pipeline import dedupe_by_message
 from email_classifier.orchestrate.provenance import (
     collect,
@@ -152,15 +152,27 @@ def main() -> None:
     escalations = conversation.collapse(
         emails, {r["message_id"] for r in stage1 if r["escalated"]}
     )
+    streaks = set_aside.failed_polls(
+        Path(paths["report_dir"]), {r["message_id"] for r in stage1 if r["escalated"]}
+    )
+    by_id = {r["message_id"]: r for r in stage1}
+    kept = []
+    for e in escalations:
+        if set_aside.is_set_aside(e.message_ids, streaks):
+            for message_id in e.message_ids:
+                by_id[message_id]["set_aside"] = True
+            print(f"[classify-pre] set aside after {set_aside.MAX_FAILED_POLLS} failed "
+                  f"polls: {e.head.message_id}", file=sys.stderr)
+        else:
+            kept.append(e)
     escalated = [
         batch.escalation_item(
             e, [matches[mid] for mid in e.message_ids],
             tokenizer, policy.anonymization_fields, prompt_fp,
         )
-        for e in escalations
+        for e in kept
     ]
-    by_id = {r["message_id"]: r for r in stage1}
-    for index, e in enumerate(escalations):
+    for index, e in enumerate(kept):
         for message_id in e.message_ids:
             by_id[message_id]["escalation_index"] = index
 
