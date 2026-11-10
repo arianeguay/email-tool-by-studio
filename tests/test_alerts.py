@@ -16,6 +16,18 @@ def _no_channel_configured(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def journal(monkeypatch):
+    """The `logger` calls a send makes, captured so no test writes to the host's log."""
+    lines = []
+
+    def run(argv, **kwargs):
+        lines.append(argv)
+
+    monkeypatch.setattr(alerts.subprocess, "run", run)
+    return lines
+
+
 class FakePost:
     def __init__(self, error=None):
         self.calls = []
@@ -150,3 +162,50 @@ def test_a_dead_channel_does_not_take_the_other_down(monkeypatch, caplog):
         alerts.notify("the grant is gone")
 
     assert [entry["message"] for entry in delivered] == ["the grant is gone"]
+
+
+# --- The pushover journal (STU-2134): a direct API call leaves the same record ---
+
+
+def test_an_accepted_pushover_send_is_recorded_under_the_pushover_tag(monkeypatch, post, journal):
+    _pushover(monkeypatch)
+
+    alerts.notify("the grant is gone")
+
+    assert [argv[:3] for argv in journal] == [["logger", "-t", "pushover"]] * 2
+    sent, accepted = (argv[-1] for argv in journal)
+    assert sent.startswith("envoi (priorite 0) : email-classifier\n")
+    assert "the grant is gone" in sent
+    assert accepted == "accepte : email-classifier"
+
+
+def test_a_rejected_pushover_send_is_recorded_as_refused(monkeypatch, journal, caplog):
+    _pushover(monkeypatch)
+    monkeypatch.setattr(requests, "post", FakePost(error=requests.HTTPError("400 Bad Request")))
+
+    with caplog.at_level(logging.ERROR):
+        alerts.notify("the grant is gone")
+
+    refused = journal[-1]
+    assert refused[refused.index("-p") + 1] == "user.err"
+    assert refused[-1] == "refuse : email-classifier : 400 Bad Request"
+    assert "not delivered" in caplog.text
+
+
+def test_no_pushover_configured_records_nothing(post, journal):
+    alerts.notify("the grant is gone")
+
+    assert journal == []
+
+
+def test_a_host_without_logger_still_sends(monkeypatch, post):
+    _pushover(monkeypatch)
+
+    def missing(argv, **kwargs):
+        raise FileNotFoundError("logger")
+
+    monkeypatch.setattr(alerts.subprocess, "run", missing)
+
+    alerts.notify("the grant is gone")
+
+    assert [call["url"] for call in post.calls] == [alerts.PUSHOVER_URL]

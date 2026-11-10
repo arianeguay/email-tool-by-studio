@@ -18,6 +18,7 @@ alert is the CRITICAL log line alone.
 
 import logging
 import os
+import subprocess
 
 _log = logging.getLogger("email_classifier.alerts")
 
@@ -66,13 +67,34 @@ def _post_pushover(message: str) -> None:
         return
     import requests
 
-    requests.post(
-        PUSHOVER_URL,
-        data={
-            "token": token,
-            "user": user,
-            "title": _PUSHOVER_TITLE,
-            "message": message[:PUSHOVER_MAX_MESSAGE],
-        },
-        timeout=_TIMEOUT,
-    ).raise_for_status()
+    _journal(f"envoi (priorite 0) : {_PUSHOVER_TITLE}\n{message}")
+    try:
+        requests.post(
+            PUSHOVER_URL,
+            data={
+                "token": token,
+                "user": user,
+                "title": _PUSHOVER_TITLE,
+                "message": message[:PUSHOVER_MAX_MESSAGE],
+            },
+            timeout=_TIMEOUT,
+        ).raise_for_status()
+    except Exception as exc:
+        _journal(f"refuse : {_PUSHOVER_TITLE} : {exc}", priority="user.err")
+        raise
+    _journal(f"accepte : {_PUSHOVER_TITLE}")
+
+
+def _journal(line: str, priority: str = "user.notice") -> None:
+    """Record a Pushover send where a host's own `pushover` wrapper records its sends.
+
+    A host reviewing what it pushed reads one syslog identifier; a direct API call
+    that leaves nothing there cannot be told apart from an alert never sent.
+    """
+    try:
+        subprocess.run(
+            ["logger", "-t", "pushover", "-p", priority, "--", line],
+            check=False, timeout=_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        _log.warning("could not record the Pushover send in the system log")
