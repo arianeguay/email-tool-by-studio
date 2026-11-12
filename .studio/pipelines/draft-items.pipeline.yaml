@@ -15,5 +15,5 @@ stages:
     over: input.emails
     pipeline: email-draft
     resume: true
-    concurrency: 2
+    concurrency: ${DRAFT_CONCURRENCY:-2}
     on_item_failure: collect-all

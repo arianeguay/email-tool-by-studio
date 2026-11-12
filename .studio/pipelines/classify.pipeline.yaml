@@ -11,7 +11,7 @@ stages:
     # durations in the run journals (a stage duration spans its retries, so it
     # overstates one attempt): the serving host n=212 p50 6.5s p99 34.8s max 44.7s; laptop
     # n=837 p99 30.7s max 132s. 180s is over five times the p99 and above every max.
-    timeout_ms: 180000
+    timeout_ms: ${CLASSIFY_TIMEOUT_MS:-180000}
     ralph:
       max_attempts: 3
       retry_strategy: prompt_escalation
