@@ -7,7 +7,7 @@ stages:
     kind: extraction
     agent: appointment-reader
     contract: appointment-extract
-    timeout_ms: 180000
+    timeout_ms: ${CALENDAR_TIMEOUT_MS:-180000}
     ralph:
       max_attempts: 2
     context:

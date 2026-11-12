@@ -7,5 +7,5 @@ stages:
     over: input.messages
     pipeline: appointment-extract
     resume: true
-    concurrency: 4
+    concurrency: ${CALENDAR_CONCURRENCY:-4}
     on_item_failure: collect-all

@@ -9,6 +9,7 @@ import base64
 import importlib.util
 import io
 import json
+import re
 import sys
 from datetime import datetime
 from email import message_from_bytes
@@ -2438,7 +2439,8 @@ def test_the_fanout_resumes_per_item_and_collects_failures():
     assert stage["pipeline"] == "email-draft"
     assert stage["resume"] is True
     assert stage["on_item_failure"] == "collect-all"
-    assert stage["concurrency"] >= 1
+    # A deployment serving one request at a time sets it to 1 (STU-2150).
+    assert re.fullmatch(r"\$\{DRAFT_CONCURRENCY:-[1-9]\d*\}", stage["concurrency"])
 
 
 def test_a_dead_fanout_never_fails_the_drafts_run():

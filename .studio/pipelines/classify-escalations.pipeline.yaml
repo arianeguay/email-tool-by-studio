@@ -12,5 +12,5 @@ stages:
     over: input.emails
     pipeline: classify
     resume: true
-    concurrency: 4
+    concurrency: ${CLASSIFY_CONCURRENCY:-4}
     on_item_failure: collect-all
