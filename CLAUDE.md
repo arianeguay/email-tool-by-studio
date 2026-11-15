@@ -2224,8 +2224,8 @@ Consequences, each one tested:
   and where the verdict is read from, shared with `qa_bakeoff`: two callers reading a
   verdict two ways would measure two different things.
   **Who runs it, and when** (STU-1086): nobody by hand, and nothing on a schedule. The
-  guard is `claude:local` (an Opus call, and the reviewer's tools read the mailbox), so no
-  push can run it. What a push can run is the question of whether it needs re-running,
+  guard needs the deployment's host (an Opus call, and the reviewer's tools read the
+  mailbox), so no push can run it. What a push can run is the question of whether it needs re-running,
   in the form of the deployment's observe-spans check (STU-1047) taken as is: a pass writes
   the deployment's `eval/draft-qa-gate.json` with a digest per file the reviewer read,
   `make qa-gate-check` compares them to the tree it sits in (the script exits 3 when a leg
@@ -2587,7 +2587,7 @@ Consequences, each one tested:
   leaves the prompt: the exact shape STU-1078 measured on the reviewer, where removing a
   skill left the rejection standing and it was the prose that held it.
   **Who runs it, and when** (STU-1156): nobody by hand, and nothing on a schedule, the
-  STU-1086 shape taken over unchanged one harness on. The guard is `claude:local`, so no
+  STU-1086 shape taken over unchanged one harness on. The guard needs the deployment's host, so no
   push can run it; what a push can run is the question of whether it needs re-running. A
   pass writes the deployment's `eval/draft-coverage-gate.json` with a digest per file the
   reader read, `make qa-coverage-gate-check` compares them to the tree it is in (3 when a
