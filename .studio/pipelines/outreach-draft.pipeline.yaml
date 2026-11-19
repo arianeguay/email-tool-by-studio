@@ -1,0 +1,31 @@
+name: outreach-draft
+description: Draft one new outgoing message from a task, into Drafts. Never sends.
+version: 1
+
+# The input is a task (a key, a title, a description), not an email (STU-2121). No
+# reviewer: every outreach draft is read by its owner before it leaves, which is the
+# design, and a draft keyed on the task cannot overwrite one already there.
+stages:
+  - name: compose-outreach
+    kind: drafting
+    agent: outreach-drafter
+    contract: outreach-draft
+    # Same bound as generate-draft in email-draft.pipeline.yaml.
+    timeout_ms: 480000
+    ralph:
+      max_attempts: 3
+    context:
+      include:
+        - input
+
+  - name: write-outreach
+    kind: drafting
+    executor: script
+    runtime: python
+    script: scripts/write_outreach.py
+    contract: write-outreach
+    timeout_ms: 120000
+    context:
+      include:
+        - input
+        - previous_stage_output

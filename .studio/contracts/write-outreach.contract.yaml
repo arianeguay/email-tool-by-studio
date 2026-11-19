@@ -1,0 +1,10 @@
+name: write-outreach
+version: 1
+
+# `created` is false when the key's draft was already in Drafts: the rerun left it.
+schema:
+  required_fields:
+    - key
+    - draft_id
+    - created
+    - subject

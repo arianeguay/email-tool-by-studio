@@ -1,0 +1,22 @@
+name: outreach-draft
+version: 1
+
+# A new outgoing message composed from a task, not a reply (STU-2121). `to` is empty
+# when the task names no address; the agent then says so in the body.
+schema:
+  required_fields:
+    - to
+    - subject
+    - draft_body
+    - sources_used
+  fields:
+    to:
+      type: string
+    subject:
+      type: string
+    draft_body:
+      type: string
+    sources_used:
+      type: array
+      items:
+        type: string

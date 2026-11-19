@@ -362,6 +362,32 @@ def test_a_second_upsert_replaces_the_draft_instead_of_adding_one(imap, monkeypa
     assert projection.parse(imap.where(second["draft_id"])[1]["raw"])["To"] == "X <x@example.com>"
 
 
+def test_an_outreach_draft_is_a_new_message_keyed_on_its_task(imap, monkeypatch):
+    monkeypatch.setenv("IMAP_USER", "moi@example.ca")
+    drafter = ImapDrafter(_session(imap))
+
+    first = drafter.create_draft("TASK-1", "Plombier <plombier@example.com>", "Soumission", "Bonjour")
+    again = drafter.create_draft("TASK-1", None, "Autre", "Autre corps")
+
+    folder, stored = imap.where(first["draft_id"])
+    draft = projection.parse(stored["raw"])
+    assert folder == "Drafts" and "\\Draft" in stored["flags"]
+    assert draft["To"] == "Plombier <plombier@example.com>"
+    assert draft["Subject"] == "Soumission"
+    assert draft["In-Reply-To"] is None
+    assert (first["created"], again["created"]) == (True, False)
+    assert again["draft_id"] == first["draft_id"]
+    assert len(imap.folders["Drafts"]) == 1
+
+
+def test_an_outreach_draft_with_no_address_has_no_recipient(imap, monkeypatch):
+    monkeypatch.setenv("IMAP_USER", "moi@example.ca")
+
+    result = ImapDrafter(_session(imap)).create_draft("TASK-2", None, "Question", "Bonjour")
+
+    assert projection.parse(imap.where(result["draft_id"])[1]["raw"])["To"] is None
+
+
 def test_deleting_a_draft_expunges_only_that_draft(imap, monkeypatch):
     monkeypatch.setenv("IMAP_USER", "moi@example.ca")
     imap.add("INBOX", _mail("m1"))

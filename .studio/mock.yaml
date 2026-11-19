@@ -30,3 +30,10 @@ stages:
       location: null
       confidence: high
     tool_calls: []
+  outreach-draft:
+    output:
+      to: ""
+      subject: Mock outreach
+      draft_body: Static mock outreach draft (offline deterministic replay).
+      sources_used: [task]
+    tool_calls: []
