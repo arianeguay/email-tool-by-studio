@@ -28,6 +28,7 @@ stages:
       previous_start_time: null
       reference: null
       location: null
+      location_note: null
       confidence: high
     tool_calls: []
   outreach-draft:

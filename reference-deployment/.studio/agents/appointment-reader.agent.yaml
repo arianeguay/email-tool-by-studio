@@ -31,7 +31,15 @@ system_prompt: |
     Null for every other kind.
   - `reference`: the booking or confirmation number the message gives, copied exactly,
     or null.
-  - `location`: the address or place as written, or null.
+  - `location`: one postal address of the place where the appointment happens: civic
+    number, street, city, and postal code when the message gives one, taken from
+    wherever the message writes it (a footer or signature counts). Only the address:
+    no business name, no route. For a move, the address the movers come to first (the
+    origin). Null when the message gives no address for that place; never guess one.
+  - `location_note`: what the message says about the place besides its address, in its
+    own words: the business name, a move's destination ("vers 12 rue Exemple, Laval"),
+    or the place it names without an address ("notre étude"). Null when it names no
+    place.
   - `confidence`: `high` when every value is stated plainly, `medium` when one needs
     reading between lines, `low` when you are unsure the message is about an
     appointment at all.

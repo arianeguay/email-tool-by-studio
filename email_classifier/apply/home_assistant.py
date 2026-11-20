@@ -32,6 +32,13 @@ def marker(row: dict) -> str:
     return f"[mail:{row['message_id']} ref:{row['event'].get('reference') or '-'}]"
 
 
+def description(row: dict) -> str:
+    """What the event says beside its address (a business name, a move's destination),
+    then the marker the create is found again by."""
+    note = row["event"].get("note")
+    return f"{note}\n{marker(row)}" if note else marker(row)
+
+
 def _http(method: str, url: str, token: str, body: dict | None = None):
     request = urllib.request.Request(
         url, method=method, data=None if body is None else json.dumps(body).encode(),
@@ -126,7 +133,7 @@ def _applied_uids(rows: list[dict]) -> dict[str, str]:
 def _event_body(row: dict) -> dict:
     event = row["event"]
     body = {"summary": event["title"], "dtstart": event["start"], "dtend": event["end"],
-            "description": marker(row)}
+            "description": description(row)}
     if event.get("location"):
         body["location"] = event["location"]
     return body
@@ -135,7 +142,7 @@ def _event_body(row: dict) -> dict:
 def _apply_one(client: HomeAssistant, row: dict, uid: str | None) -> str:
     entity, event = row["entity"], row["event"]
     if row["op"] == CREATE:
-        client.create(entity, event, marker(row))
+        client.create(entity, event, description(row))
         found = [e.get("uid") for e in client.events(entity, event["start"], event["end"])
                  if marker(row) in (e.get("description") or "")]
         if len(found) != 1 or not found[0]:
