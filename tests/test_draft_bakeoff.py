@@ -393,8 +393,10 @@ def test_the_bakeoff_pipeline_is_email_draft_with_the_mailbox_write_stood_down()
         "generate-draft", "seal-draft", "draft-qa"]
     for mine, theirs in zip(bakeoff["stages"], production["stages"]):
         if theirs.get("agent"):
-            assert (mine["agent"], mine["contract"], mine.get("ralph")) == (
-                theirs["agent"], theirs["contract"], theirs.get("ralph"))
+            assert (mine["agent"], mine["contract"], mine.get("ralph"),
+                    mine.get("timeout_ms")) == (
+                theirs["agent"], theirs["contract"], theirs.get("ralph"),
+                theirs.get("timeout_ms"))
 
 
 def test_the_bakeoff_writes_no_draft_to_the_mailbox():
