@@ -11,11 +11,14 @@ fails a check lands in `logs/calendar/review.jsonl`, never in the plan.
 `logs/calendar/events.jsonl` is append-only and the last row of a key is its state. A key
 is `ref:<booking reference>` when the message gives one and `msg:<message id>` otherwise.
 Every row carries `uid` and `status`, so a writer records what it did by appending a row
-for the same key, and a later move or delete carries the uid forward.
+for the same key, and a later move or delete carries the uid forward. A confirmation
+whose start and folded title match a live event is journaled `attach` under its own
+message key instead of creating a second event (STU-2113).
 """
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -41,7 +44,7 @@ CONFIRMATION, RESCHEDULE, CANCELLATION, NOT_APPOINTMENT = (
 KINDS = (CONFIRMATION, RESCHEDULE, CANCELLATION, NOT_APPOINTMENT)
 CONFIDENCES = ("high", "medium", "low")
 
-CREATE, MOVE, DELETE, NONE = "create", "move", "delete", "none"
+CREATE, MOVE, DELETE, NONE, ATTACH = "create", "move", "delete", "none", "attach"
 PLANNED = "planned"
 
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
@@ -109,6 +112,11 @@ def state(rows: list[dict]) -> dict[str, dict]:
 
 def _normalized(text: str) -> str:
     return " ".join(text.split()).casefold()
+
+
+def _folded(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text)
+    return _normalized("".join(c for c in decomposed if not unicodedata.combining(c)))
 
 
 def _resolve_date(written, message_day: date) -> date:
@@ -246,6 +254,18 @@ def _match(appointment: Appointment, live: dict[str, dict]) -> str | None:
     return found[0] if found else None
 
 
+def _same_appointment(event: dict, live: dict[str, dict]) -> str | None:
+    """The live event another message of the exchange already created: same start and
+    same title once case, accents and spacing are folded (STU-2113)."""
+    start, title = datetime.fromisoformat(event["start"]), _folded(event["title"])
+    found = [key for key, row in live.items()
+             if datetime.fromisoformat(row["event"]["start"]) == start
+             and _folded(row["event"]["title"]) == title]
+    if len(found) > 1:
+        raise Refused(f"{len(found)} events already share this start and title")
+    return found[0] if found else None
+
+
 def _item(op: str, key: str, appointment: Appointment, entity: str,
           event: dict | None, uid=None, previous: dict | None = None) -> dict:
     return {"op": op, "key": key, "message_id": appointment.message_id, "entity": entity,
@@ -259,7 +279,12 @@ def _step(appointment: Appointment, live: dict[str, dict], entity: str) -> dict:
         key = _key(appointment)
         current = live.get(key)
         if current is None:
-            return _item(CREATE, key, appointment, entity, appointment.event)
+            existing = _same_appointment(appointment.event, live)
+            if existing is None:
+                return _item(CREATE, key, appointment, entity, appointment.event)
+            # Its own key, so the attach row never becomes the existing event's state.
+            return {**_item(ATTACH, f"msg:{appointment.message_id}", appointment, entity,
+                            None, live[existing].get("uid")), "attached_to": existing}
         if (current["event"]["start"], current["event"]["end"]) == (
                 appointment.event["start"], appointment.event["end"]):
             return _item(NONE, f"msg:{appointment.message_id}", appointment, entity, None)
@@ -299,7 +324,7 @@ def plan(pending: list[dict], results: dict[int, dict], journal: list[dict],
                            "reason": str(refusal), "extraction": _restored(output, keymap)})
             continue
         events.append({"run_id": run_id, "status": PLANNED, **step})
-        if step["op"] == NONE:
+        if step["op"] in (NONE, ATTACH):
             continue
         planned.append(step)
         if step["op"] == DELETE:
