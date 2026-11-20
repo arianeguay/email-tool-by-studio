@@ -25,6 +25,9 @@ stages:
         kind: drafting
         agent: drafter
         contract: email-draft
+        # Production's per-attempt bound (STU-1495): without it a wedged attempt runs
+        # until the harness kills the whole arm, which then records no verdict (STU-2153).
+        timeout_ms: 480000
         ralph:
           max_attempts: 3
           retry_strategy: prompt_escalation
@@ -48,6 +51,7 @@ stages:
         kind: qa
         agent: draft-reviewer
         contract: draft-qa
+        timeout_ms: 480000
         ralph:
           max_attempts: 2
         context:
