@@ -480,6 +480,8 @@ the input (STU-896). Only `drafts` (STU-850: reply drafts on `needs_reply`, a dr
 group, anti-theatre on the draft's creation) and `calendar` (STU-2089) are tolerated in
 failure.
 
+`.studio/pipelines/outreach-draft.pipeline.yaml` (STU-2121) is the one pipeline whose input is a task, not an email: the deployment's `outreach-drafter` agent composes the first message of a request someone owes a reply to, and `scripts/write_outreach.py` appends it to Drafts as a new message. The draft's Message-ID derives from the task key, so a rerun finds the draft it left instead of adding one. No reviewer stage: its owner reads every outreach draft before sending, and only IMAP drafts a new message today.
+
 ### The unit of verdict is the conversation (STU-940)
 
 Classification is per message, the mailbox is per conversation. An Outlook category sits

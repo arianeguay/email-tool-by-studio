@@ -39,6 +39,27 @@ class ImapDrafter:
         self._mailbox.session.append(self._drafts(), "(\\Draft \\Seen)", draft.as_bytes())
         return {"draft_id": projection.message_id(draft), "updated": existing is not None}
 
+    def create_draft(self, key: str, to: str | None, subject: str, body: str) -> dict:
+        """A new message, not a reply (STU-2121).
+
+        The Message-ID derives from `key`, so a second call for the same key finds the
+        first draft and leaves it, edits included, instead of adding another.
+        """
+        sender = os.environ.get("IMAP_FROM") or os.environ["IMAP_USER"]
+        draft_id = f"outreach-{key}@{sender.rpartition('@')[2]}"
+        if self._mailbox.locate(draft_id, [self._drafts()]) is not None:
+            return {"draft_id": draft_id, "created": False}
+        message = EmailMessage()
+        message["From"] = sender
+        if to:
+            message["To"] = to
+        message["Subject"] = subject
+        message["Date"] = formatdate(localtime=True)
+        message["Message-ID"] = f"<{draft_id}>"
+        message.set_content(body)
+        self._mailbox.session.append(self._drafts(), "(\\Draft \\Seen)", message.as_bytes())
+        return {"draft_id": draft_id, "created": True}
+
     def get_draft(self, draft_id: str) -> dict | None:
         """INTERNALDATE is the draft's last save: a client saving an edit stores it anew."""
         located = self._mailbox.locate(draft_id, [self._drafts()])
