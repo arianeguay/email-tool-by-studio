@@ -370,6 +370,57 @@ def test_a_repeated_confirmation_plans_nothing_more():
     assert planned == [] and events[0]["op"] == "none" and events[0]["key"] == "msg:m4"
 
 
+MOVE_BODY = "Confirmé : déménagement le mercredi 4 novembre à 14h00."
+
+
+def _move_confirmations():
+    """Two messages of one exchange, each confirming the same appointment, no reference."""
+    return ([item("m1", MOVE_BODY), item("m2", MOVE_BODY, date="2026-10-21T13:00:00+00:00")],
+            [extraction(title="Déménagement", reference=None,
+                        date_evidence="le mercredi 4 novembre à 14h00"),
+             extraction(title="  deménagement ", reference=None,
+                        date_evidence="le mercredi 4 novembre à 14h00")])
+
+
+def test_a_second_confirmation_without_reference_attaches_to_the_first():
+    pending, outputs = _move_confirmations()
+    planned, events, review = run_plan(pending, outputs)
+    assert review == []
+    assert [p["op"] for p in planned] == ["create"]
+    assert [(e["op"], e["key"], e["message_id"]) for e in events] == [
+        ("create", "msg:m1", "m1"), ("attach", "msg:m2", "m2")]
+    assert events[1]["attached_to"] == "msg:m1"
+
+
+def test_an_attached_confirmation_plans_nothing_on_the_next_run():
+    pending, outputs = _move_confirmations()
+    _, events, _ = run_plan(pending, outputs)
+    handled = cp.handled_message_ids(events)
+    report = {"verdicts": [{"message_id": m, "status": "ok",
+                            "subtype": "recital_confirmation"} for m in ("m1", "m2")]}
+    assert cp.targets(report, CAL.subtypes, handled) == []
+    applied = [{**events[0], "status": "applied", "uid": "u-1"}, events[1]]
+    planned, later, _ = run_plan(pending[1:], outputs[1:], journal=applied)
+    assert planned == [] and later[0]["op"] == "attach" and later[0]["uid"] == "u-1"
+
+
+def test_the_attach_row_leaves_the_event_live_for_a_later_cancellation():
+    pending, outputs = _move_confirmations()
+    _, events, _ = run_plan(pending, outputs)
+    body = "Le déménagement du 4 novembre à 14h00 est annulé."
+    planned, _, review = run_plan([item("m3", body)], [extraction(
+        kind="cancellation", reference=None,
+        date_evidence="Le déménagement du 4 novembre à 14h00")], journal=events)
+    assert review == [] and planned[0]["op"] == "delete" and planned[0]["key"] == "msg:m1"
+
+
+def test_another_title_at_the_same_start_is_its_own_event():
+    pending, outputs = _move_confirmations()
+    outputs[1]["title"] = "Livraison du frigo"
+    planned, _, _ = run_plan(pending, outputs)
+    assert [p["op"] for p in planned] == ["create", "create"]
+
+
 # ── calendar-post ────────────────────────────────────────────────────────────
 
 def test_post_writes_both_journals_and_a_rerun_plans_nothing_twice(
