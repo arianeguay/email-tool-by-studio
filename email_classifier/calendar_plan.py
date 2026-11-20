@@ -51,6 +51,8 @@ _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
 # A model told to answer in English still copies `jeudi` from a French message.
 _WEEKDAY_INDEX = {name: i for names in (_WEEKDAYS, lang.deployment_config().get("weekdays", ()))
                   for i, name in enumerate(names)}
+# A civic number: what makes a location one door a geocoder can find (STU-2114).
+_CIVIC = re.compile(r"\d")
 _DATE = re.compile(r"(?:(\d{4})-)?(\d{2})-(\d{2})")
 _TIME = re.compile(r"([01]\d|2[0-3]):([0-5]\d)")
 
@@ -203,6 +205,12 @@ def read(item: dict, output, calendar: CalendarPolicy, keymap: dict[str, str]) -
                                  output.get("weekday")).isoformat()
         return Appointment(kind, item["message_id"], reference, domain, None, match_start)
 
+    location, note = restore(output.get("location")), restore(output.get("location_note"))
+    if location and not _CIVIC.search(location):
+        raise Refused(f"location {location!r} is not a street address")
+    if not location and note:
+        raise Refused(f"no single address for {note!r}")
+
     start = _start(output, "date", "start_time", message_day, zone, output.get("weekday"))
     if output.get("end_time"):
         end = _localize(start.date(), output["end_time"], zone)
@@ -217,7 +225,8 @@ def read(item: dict, output, calendar: CalendarPolicy, keymap: dict[str, str]) -
         "title": restore(output.get("title")) or restore(item.get("subject")) or "",
         "start": start.isoformat(),
         "end": end.isoformat(),
-        "location": restore(output.get("location")),
+        "location": location,
+        "note": note,
         "reference": reference,
         "sender_domain": domain,
     }

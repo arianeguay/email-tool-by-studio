@@ -112,6 +112,14 @@ def test_a_create_without_a_reference_marks_it_absent(tmp_path):
     assert body["description"] == "[mail:m1 ref:-]" and "location" not in body
 
 
+def test_a_note_opens_the_description_and_the_marker_still_finds_the_event(tmp_path):
+    fake = FakeHA()
+    written, _ = run_apply(fake, [planned("create", event={**EVENT, "note": "Clinique Fictive"})],
+                           tmp_path)
+    assert fake.http_calls[0][2]["description"] == "Clinique Fictive\n[mail:m1 ref:AB-1207]"
+    assert written[0]["status"] == "applied" and written[0]["uid"] == "uid-1"
+
+
 @pytest.mark.parametrize("listed", [
     [],
     [{"uid": "a", "description": "[mail:m1 ref:AB-1207]"},

@@ -262,7 +262,7 @@ def test_a_confirmation_is_created_under_its_reference():
         "op": "create", "key": "ref:AB-1207", "message_id": "m1",
         "entity": "calendar.studio", "previous": None, "uid": None,
         "event": {"title": "Essai de violon", "start": "2026-11-04T14:00:00-05:00",
-                  "end": "2026-11-04T15:00:00-05:00", "location": None,
+                  "end": "2026-11-04T15:00:00-05:00", "location": None, "note": None,
                   "reference": "AB-1207", "sender_domain": "example-music.test"},
     }]
     assert events == [{"run_id": "run-1", "status": "planned", **planned[0]}]
@@ -274,9 +274,37 @@ def test_no_reference_keys_on_the_message_id():
 
 
 def test_tokens_are_restored_into_the_planned_event():
-    planned, _, _ = run_plan([item()], [extraction(location="chez PERSON_2")],
+    planned, _, _ = run_plan([item()], [extraction(location="12 rue PERSON_2",
+                                                   location_note="Studio PERSON_2")],
                              keymap={"PERSON_2": "Zelda Quintal"})
-    assert planned[0]["event"]["location"] == "chez Zelda Quintal"
+    assert planned[0]["event"]["location"] == "12 rue Zelda Quintal"
+    assert planned[0]["event"]["note"] == "Studio Zelda Quintal"
+
+
+def test_an_address_with_its_business_name_in_the_note_is_planned():
+    planned, _, review = run_plan([item()], [extraction(
+        location="4410 rue Fabre, Montréal, QC H2J 3V3",
+        location_note="Clinique Fictive du Plateau")])
+    assert review == []
+    assert planned[0]["event"]["location"] == "4410 rue Fabre, Montréal, QC H2J 3V3"
+    assert planned[0]["event"]["note"] == "Clinique Fictive du Plateau"
+
+
+@pytest.mark.parametrize("location, note, reason", [
+    ("chez le notaire", None, "is not a street address"),
+    ("avenue des Pins vers Laval", None, "is not a street address"),
+    (None, "notre étude", "no single address for 'notre étude'"),
+])
+def test_a_place_without_one_address_goes_to_review(location, note, reason):
+    planned, events, review = run_plan([item()], [extraction(location=location,
+                                                             location_note=note)])
+    assert (planned, events) == ([], [])
+    assert reason in review[0]["reason"]
+
+
+def test_an_appointment_that_names_no_place_is_planned_without_a_location():
+    planned, _, review = run_plan([item()], [extraction(location=None, location_note=None)])
+    assert review == [] and planned[0]["event"]["location"] is None
 
 
 def test_not_an_appointment_is_journaled_without_a_plan():
