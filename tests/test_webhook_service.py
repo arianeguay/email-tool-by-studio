@@ -30,6 +30,11 @@ def test_main_serves_through_waitress(monkeypatch):
     assert served == {"app": "the-app", "host": "0.0.0.0", "port": 18080}
 
 
+# The detector's child runs it, so it crosses by pickle and must live at module level.
+def finds_caroline(text, from_address=None):
+    return [(0, 8, "person")]
+
+
 def test_the_detector_is_serving_while_the_app_is(monkeypatch):
     """The whole of STU-938 rides on one line in `main()`, and nothing else asserts it.
 
@@ -49,10 +54,7 @@ def test_the_detector_is_serving_while_the_app_is(monkeypatch):
         while_serving.update(path=path, answers=detector.remote_spans("Caroline"))
 
     monkeypatch.setattr(waitress, "serve", serve)
-    monkeypatch.setattr(
-        "email_classifier.anonymize._local_person_spans",
-        lambda text, from_address=None: [(0, 8, "person")],
-    )
+    monkeypatch.setattr("email_classifier.anonymize._local_person_spans", finds_caroline)
 
     assert webhook_server.main() == 0
     # A live socket, not merely a variable: a detector nothing can reach would leave

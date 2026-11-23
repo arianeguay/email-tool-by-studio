@@ -79,8 +79,6 @@ _IDLE_SECONDS = 600.0
 
 def _work(conn, spans) -> None:
     """The child's loop: one request in, one reply out, until the parent hangs up."""
-    if spans is None:
-        from email_classifier.anonymize import _local_person_spans as spans
     while True:
         try:
             text, from_address = conn.recv()
@@ -96,8 +94,9 @@ def _work(conn, spans) -> None:
 class _Worker:
     """The child holding the model: started on the first request, stopped once idle.
 
-    `spans` is what the child runs, `anonymize._local_person_spans` unless a test hands it
-    a stand-in; it crosses to the child by pickle, so it is a module-level function.
+    `spans` is what the child runs, else `anonymize._local_person_spans` as the parent
+    sees it when the child starts, so a test that replaces it there reaches the child. It
+    crosses by pickle, so it is a module-level function.
     """
 
     def __init__(self, spans=None, idle_seconds: float = _IDLE_SECONDS) -> None:
@@ -139,10 +138,15 @@ class _Worker:
     def _start(self) -> None:
         # Spawned, not forked: the webhook is threaded by then, and a fork copies
         # whatever lock another thread held at that instant.
+        # Imported here and not at module scope: `anonymize` reaches back into this
+        # module for its client half.
+        from email_classifier import anonymize
+
+        spans = self._spans or anonymize._local_person_spans
         context = multiprocessing.get_context("spawn")
         self._conn, child = context.Pipe()
         self._process = context.Process(
-            target=_work, args=(child, self._spans), name="detector", daemon=True
+            target=_work, args=(child, spans), name="detector", daemon=True
         )
         self._process.start()
         child.close()
