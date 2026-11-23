@@ -1,3 +1,4 @@
+import importlib.machinery
 import os
 import shutil
 import subprocess
@@ -269,14 +270,16 @@ def stub_detector(monkeypatch):
 
 
 def pin_gliner(monkeypatch, present=True):
-    """Pin whether `import gliner` succeeds, whatever this machine has installed.
+    """Pin whether `gliner` is installed, whatever this machine has.
 
-    `missing_detector` imports the package rather than probing a spec, so `None` in
-    `sys.modules` is what an absent extra looks like from the inside.
+    `find_spec` answers from `sys.modules` first: `None` there is an absent extra, and a
+    module carrying a spec is a present one.
     """
-    monkeypatch.setitem(
-        sys.modules, "gliner", types.ModuleType("gliner") if present else None
-    )
+    module = None
+    if present:
+        module = types.ModuleType("gliner")
+        module.__spec__ = importlib.machinery.ModuleSpec("gliner", None)
+    monkeypatch.setitem(sys.modules, "gliner", module)
 
 
 @pytest.fixture

@@ -11,25 +11,47 @@ import pytest
 from email_classifier import anonymize, detector
 
 
+# The child runs these, so they cross by pickle and must live at module level.
+def whole_text(text, from_address=None):
+    return [(0, len(text), "person")]
+
+
+def labelled_by_pid(text, from_address=None):
+    """The process that answered, so a test can tell the child from the caller."""
+    return [(0, len(text), str(os.getpid()))]
+
+
+def echo_sender(text, from_address=None):
+    return [(0, len(text), from_address)]
+
+
+def weights_gone(text, from_address=None):
+    raise RuntimeError("weights are gone")
+
+
+def wedged(text, from_address=None):
+    time.sleep(10)
+
+
 @pytest.fixture
-def served(monkeypatch):
-    """A running detector service, with the local half stubbed to a known answer.
-
-    It records the thread it ran on. In production the client and the server are
-    different processes; in one test process the thread is what tells them apart, and
-    "the detector was loaded by the server, not by the caller" is the claim under test.
-    """
-    ran_on = []
-
-    def spans(text, from_address=None):
-        ran_on.append(threading.current_thread())
-        return [(0, len(text), "person")]
-
-    monkeypatch.setattr(anonymize, "_local_person_spans", spans)
+def serve(monkeypatch):
+    """Start a detector service whose child runs `spans`."""
     monkeypatch.delenv(detector.SOCKET_ENV, raising=False)
-    with detector.Detector() as service:
-        service.ran_on = ran_on
-        yield service
+    services = []
+
+    def start(spans=whole_text, **kwargs):
+        service = detector.Detector(spans, **kwargs).__enter__()
+        services.append(service)
+        return service
+
+    yield start
+    for service in services:
+        service.__exit__(None, None, None)
+
+
+@pytest.fixture
+def served(serve):
+    return serve()
 
 
 def _ask(path, payload):
@@ -45,10 +67,11 @@ def test_serves_the_spans_the_local_detector_would_have_found(served):
     assert detector.remote_spans("Caroline") == [(0, 8, "person")]
 
 
-def test_person_spans_prefers_the_service(served):
-    assert anonymize._person_spans("Caroline") == [(0, 8, "person")]
-    # Answered by the server, so the caller never touched the weights itself.
-    assert served.ran_on and threading.main_thread() not in served.ran_on
+def test_person_spans_prefers_the_service(serve):
+    serve(labelled_by_pid)
+    [(_, _, answered_by)] = anonymize._person_spans("Caroline")
+    # Answered by the child, so the caller never touched the weights itself.
+    assert answered_by != str(os.getpid())
 
 
 def test_person_spans_loads_locally_when_nobody_serves(monkeypatch):
@@ -63,13 +86,9 @@ def test_a_stale_socket_falls_back_instead_of_failing(monkeypatch, tmp_path):
     assert anonymize._person_spans("Caroline") == [(1, 2, "person")]
 
 
-def test_a_failing_detector_raises_rather_than_reporting_no_names(monkeypatch, served):
+def test_a_failing_detector_raises_rather_than_reporting_no_names(serve):
     """The failure mode STU-890 exists to end: an empty list means "nobody is here"."""
-
-    def boom(text, from_address=None):
-        raise RuntimeError("weights are gone")
-
-    monkeypatch.setattr(anonymize, "_local_person_spans", boom)
+    serve(weights_gone)
     with pytest.raises(RuntimeError, match="weights are gone"):
         detector.remote_spans("Caroline")
 
@@ -98,63 +117,68 @@ def test_a_server_that_dies_mid_request_falls_back(monkeypatch, tmp_path):
         assert anonymize._person_spans("Caroline") == [(1, 2, "person")]
 
 
-def test_a_wedged_server_does_not_hold_the_caller_forever(monkeypatch, served):
-    monkeypatch.setattr(detector, "_TIMEOUT_SECONDS", 0.2)
-    monkeypatch.setattr(anonymize, "_local_person_spans", lambda text, from_address=None: time.sleep(10))
+def test_a_wedged_server_does_not_hold_the_caller_forever(monkeypatch, serve):
+    service = serve(wedged)
+    monkeypatch.setattr(detector, "_TIMEOUT_SECONDS", 2)
     started = time.monotonic()
     assert detector.remote_spans("Caroline") is None
-    assert time.monotonic() - started < 5
+    assert time.monotonic() - started < 8
+    # The wedged child is killed, not left holding every later request behind it.
+    deadline = time.monotonic() + 10
+    while service.worker.alive and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not service.worker.alive
 
 
-def test_concurrent_callers_are_served_one_at_a_time(monkeypatch, served):
-    """The fan-out is parallel; one detector cannot run two forward passes at once."""
-    concurrent, peak = [], []
+def test_concurrent_callers_each_get_their_own_answer(served):
+    """The fan-out is parallel and shares one pipe to the child: no reply may cross."""
+    answers = {}
 
-    def one_at_a_time(text, from_address=None):
-        concurrent.append(1)
-        peak.append(len(concurrent))
-        try:
-            return [(0, len(text), "person")]
-        finally:
-            concurrent.pop()
+    def ask(n):
+        answers[n] = detector.remote_spans("x" * n)
 
-    monkeypatch.setattr(anonymize, "_local_person_spans", one_at_a_time)
-    threads = [
-        threading.Thread(target=lambda: detector.remote_spans("Caroline"))
-        for _ in range(8)
-    ]
+    threads = [threading.Thread(target=ask, args=(n,)) for n in range(1, 9)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
-    assert max(peak) == 1
+    assert answers == {n: [(0, n, "person")] for n in range(1, 9)}
 
 
-def test_the_socket_and_its_env_var_are_gone_once_the_service_exits(monkeypatch):
+def test_the_child_exits_once_idle_and_comes_back_on_demand(serve):
+    """HOM-1684: the model is held between the calls of one run, not between emails."""
+    service = serve(idle_seconds=0.5)
+    assert not service.worker.alive
+    assert detector.remote_spans("Caroline") == [(0, 8, "person")]
+    assert service.worker.alive
+    deadline = time.monotonic() + 10
+    while service.worker.alive and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not service.worker.alive
+    assert detector.remote_spans("Caroline") == [(0, 8, "person")]
+
+
+def test_the_socket_its_env_var_and_the_child_are_gone_once_the_service_exits(monkeypatch):
     monkeypatch.delenv(detector.SOCKET_ENV, raising=False)
-    with detector.Detector() as service:
+    with detector.Detector(whole_text) as service:
         path = service.path
         assert os.environ[detector.SOCKET_ENV] == str(path)
+        detector.remote_spans("Caroline")
+        assert service.worker.alive
     assert detector.SOCKET_ENV not in os.environ
     assert not path.exists() and not path.parent.exists()
+    assert not service.worker.alive
 
 
-def test_the_tokenizer_reaches_the_service(served):
+def test_the_tokenizer_reaches_the_service(monkeypatch, served):
     """The whole point: no caller of `Tokenizer` knows the detector moved."""
+    monkeypatch.setattr(anonymize, "_model", lambda: pytest.fail("loaded in the caller"))
     assert anonymize.Tokenizer().anonymize("Caroline") == "PERSON_X"
-    assert served.ran_on and threading.main_thread() not in served.ran_on
 
 
-def test_the_sender_domain_crosses_the_socket(monkeypatch):
+def test_the_sender_domain_crosses_the_socket(serve):
     """STU-1273: the push path shares this server, so the veto must ride the wire too."""
-    seen = []
-
-    def spans(text, from_address=None):
-        seen.append(from_address)
-        return [(0, len(text), "person")]
-
-    monkeypatch.setattr(anonymize, "_local_person_spans", spans)
-    monkeypatch.delenv(detector.SOCKET_ENV, raising=False)
-    with detector.Detector():
-        detector.remote_spans("emagine", from_address="no_reply@emagine.org")
-    assert seen == ["no_reply@emagine.org"]
+    serve(echo_sender)
+    assert detector.remote_spans("emagine", from_address="no_reply@emagine.org") == [
+        (0, 7, "no_reply@emagine.org")
+    ]

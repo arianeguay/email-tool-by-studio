@@ -37,14 +37,16 @@ def _recipe(target: str) -> str:
     return "\n".join(body)
 
 
+# The detector's child runs it, so it crosses by pickle and must live at module level.
+def whole_text(text, from_address=None):
+    return [(0, len(text), "person")]
+
+
 @pytest.fixture
 def one_span(monkeypatch):
     """The server half, stubbed: the claim under test is who loaded it, not what it found."""
     monkeypatch.delenv(detector.SOCKET_ENV, raising=False)
-    monkeypatch.setattr(
-        anonymize, "_local_person_spans",
-        lambda text, from_address=None: [(0, len(text), "person")],
-    )
+    monkeypatch.setattr(anonymize, "_local_person_spans", whole_text)
 
 
 def test_the_child_is_served_by_the_detector_the_wrapper_holds(one_span, tmp_path):
