@@ -77,8 +77,8 @@ A lost Graph grant is the one failure that ends the process (STU-930): no retry
 can restore it, so the worker alerts through `email_classifier.alerts` and
 SIGTERMs itself rather than rediscovering the refusal on every notification.
 
-For the life of the server it also holds one name detector, and serves it to the
-processes a run spawns (STU-938). Loading GLiNER costs ~20s and a 2.8 GB
+For the life of the server it also serves one name detector to the processes a run
+spawns (STU-938), loaded in a child process that exits once idle (HOM-1684). Loading GLiNER costs ~20s and a 2.8 GB
 allocation spike on the homelab, and every one of those processes was paying it
 for itself -- `drafts_pre`, then a `org_memory-read` and a
 `mail_precedents-search_mail` per drafting agent -- to do a fraction of a second
