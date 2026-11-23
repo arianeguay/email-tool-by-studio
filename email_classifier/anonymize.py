@@ -15,6 +15,7 @@ looked at the one place a name never is and the whole club corpus reached the LL
 every name in cleartext (STU-890). Names come from GLiNER here instead.
 """
 
+import importlib.util
 import json
 import logging
 import re
@@ -225,12 +226,12 @@ def missing_detector() -> str | None:
 
     Lets a caller refuse before opening a run instead of raising on the first
     `anonymize()` call, well after the mailbox is fetched (STU-908).
+
+    A spec probe and not an import: `import gliner` imports torch, and the webhook asks
+    this on every run, so the import kept torch resident in a process that never runs the
+    model since the detector moved to a child (HOM-1684).
     """
-    try:
-        import gliner  # noqa: F401
-    except ImportError:
-        return _NO_DETECTOR
-    return None
+    return None if importlib.util.find_spec("gliner") else _NO_DETECTOR
 
 
 @lru_cache(maxsize=1)

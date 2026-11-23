@@ -62,7 +62,7 @@ PYTHONPATH=$PWD /tmp/hermetic/bin/python -m pytest -q
 
 What holding it costs: three stubs, in `tests/conftest.py` so that a copy that drifts
 cannot stop representing the real thing. `stub_detector` (the model, for a test whose
-subject is not who is in the text), `pin_gliner` (the import that `missing_detector`
+subject is not who is in the text), `pin_gliner` (the spec probe that `missing_detector`
 makes, in both directions) and `requires_gliner` (the skip, for a test that asserts on a
 detected name). The last is a marker and not a `skipif`, skipped by
 `pytest_runtest_setup`: the condition probes the model as well as the package (the extra
