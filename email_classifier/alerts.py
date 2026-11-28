@@ -32,8 +32,11 @@ PUSHOVER_MAX_MESSAGE = 1024
 _PUSHOVER_TITLE = "email-classifier"
 
 
-def notify(message: str) -> None:
+def notify(message: str, priority: int = 0) -> None:
     """Log the alert at CRITICAL and send it to every channel this host configures.
+
+    `priority` is Pushover's: -1 lists the alert without a sound, for a status that
+    needs reading this week rather than this hour (STU-2162).
 
     Never raises: every caller is already handling a failure, and an unreachable
     alert endpoint must not replace that failure with a different one.
@@ -41,7 +44,7 @@ def notify(message: str) -> None:
     _log.critical(message)
     for send in (_post_webhook, _post_pushover):
         try:
-            send(message)
+            send(message, priority)
         except Exception:
             _log.error(
                 "%s failed — the alert above was not delivered that way",
@@ -49,7 +52,7 @@ def notify(message: str) -> None:
             )
 
 
-def _post_webhook(message: str) -> None:
+def _post_webhook(message: str, priority: int) -> None:
     url = os.environ.get("ALERT_WEBHOOK_URL")
     if not url:
         return
@@ -60,14 +63,14 @@ def _post_webhook(message: str) -> None:
     ).raise_for_status()
 
 
-def _post_pushover(message: str) -> None:
+def _post_pushover(message: str, priority: int) -> None:
     token = os.environ.get("PUSHOVER_TOKEN")
     user = os.environ.get("PUSHOVER_USER")
     if not (token and user):
         return
     import requests
 
-    _journal(f"envoi (priorite 0) : {_PUSHOVER_TITLE}\n{message}")
+    _journal(f"envoi (priorite {priority}) : {_PUSHOVER_TITLE}\n{message}")
     try:
         requests.post(
             PUSHOVER_URL,
@@ -76,6 +79,7 @@ def _post_pushover(message: str) -> None:
                 "user": user,
                 "title": _PUSHOVER_TITLE,
                 "message": message[:PUSHOVER_MAX_MESSAGE],
+                "priority": priority,
             },
             timeout=_TIMEOUT,
         ).raise_for_status()

@@ -79,7 +79,8 @@ def _quiet_reporting(tmp_path, monkeypatch):
     monkeypatch.setattr(
         check_webhook_health, "JOURNAL", tmp_path / "state" / "health-checks.jsonl"
     )
-    monkeypatch.setattr(check_webhook_health.alerts, "notify", _alerted.append)
+    monkeypatch.setattr(check_webhook_health.alerts, "notify",
+                        lambda message, priority=0: _alerted.append(message))
     _alerted.clear()
 
 
@@ -1248,7 +1249,13 @@ def test_a_secret_expiring_inside_the_window_alerts_under_its_own_code(
     _serve_drift(monkeypatch, _CURRENT)
     _secret(monkeypatch, _in_days(12))
 
+    priorities = []
+    monkeypatch.setattr(check_webhook_health.alerts, "notify",
+                        lambda message, priority=0: (_alerted.append(message),
+                                                     priorities.append(priority)))
+
     assert check_webhook_health.main([]) == check_webhook_health.EXPIRING_SOON
+    assert priorities == [0], "a lapsing secret stops classification, so it sounds"
 
     err = capsys.readouterr().err
     assert "[EXPIRING]" in err
@@ -1759,7 +1766,13 @@ def test_an_entry_inside_the_window_alerts_under_its_own_code(monkeypatch, capsy
     _serve(monkeypatch, _OK)
     _serve_drift(monkeypatch, _CURRENT)
 
+    priorities = []
+    monkeypatch.setattr(check_webhook_health.alerts, "notify",
+                        lambda message, priority=0: (_alerted.append(message),
+                                                     priorities.append(priority)))
+
     assert check_webhook_health.main([]) == check_webhook_health.AUDIT_EXPIRING
+    assert priorities == [-1], "a week's notice needs no sound"
 
     err = capsys.readouterr().err
     assert "[AUDIT EXPIRING]" in err
