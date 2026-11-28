@@ -102,6 +102,25 @@ def test_pushover_gets_the_three_form_fields(monkeypatch, post):
     assert post.calls[0]["data"]["message"] == "the grant is gone"
 
 
+def test_pushover_sounds_unless_told_otherwise(monkeypatch, post, journal):
+    _pushover(monkeypatch)
+
+    alerts.notify("the grant is gone")
+
+    assert post.calls[0]["data"]["priority"] == 0
+    assert journal[0][-1].startswith("envoi (priorite 0) : ")
+
+
+def test_a_quiet_alert_is_sent_and_recorded_at_priority_minus_one(monkeypatch, post, journal):
+    """Listed on the phone without a sound (STU-2162): a status, not a stop."""
+    _pushover(monkeypatch)
+
+    alerts.notify("3 message(s) wait for a verdict", priority=-1)
+
+    assert post.calls[0]["data"]["priority"] == -1
+    assert journal[0][-1].startswith("envoi (priorite -1) : email-classifier\n")
+
+
 def test_pushover_needs_both_halves_of_the_credential(monkeypatch, post):
     monkeypatch.setenv("PUSHOVER_TOKEN", "tok")
 

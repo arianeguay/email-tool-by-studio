@@ -55,7 +55,8 @@ def reports(tmp_path):
 @pytest.fixture
 def alerts(monkeypatch):
     sent = []
-    monkeypatch.setattr(check_unverdicted.alerts, "notify", sent.append)
+    monkeypatch.setattr(check_unverdicted.alerts, "notify",
+                        lambda message, priority=0: sent.append(message))
     return sent
 
 
@@ -124,6 +125,25 @@ def test_an_unreadable_mailbox_is_unmeasured_not_clean(tmp_path, reports, alerts
     monkeypatch.setattr(check_unverdicted, "get_fetcher", refuse)
     assert _run(tmp_path, reports) == check_unverdicted.UNREADABLE
     assert "could not be listed" in alerts[0]
+
+
+def test_unverdicted_mail_is_pushed_without_a_sound_and_unmeasured_mail_is_not(
+    tmp_path, reports, monkeypatch
+):
+    """Mail left unjudged waits for a read; a mailbox nobody can list is a stop."""
+    priorities = []
+    monkeypatch.setattr(check_unverdicted.alerts, "notify",
+                        lambda message, priority=0: priorities.append(priority))
+    _serve(monkeypatch, INBOX)
+    assert _run(tmp_path, reports) == check_unverdicted.UNVERDICTED
+
+    def refuse(provider):
+        raise RuntimeError("grant lost")
+
+    monkeypatch.setattr(check_unverdicted, "get_fetcher", refuse)
+    assert _run(tmp_path, reports) == check_unverdicted.UNREADABLE
+
+    assert priorities == [-1, 0]
 
 
 def test_no_report_on_disk_is_unmeasured(tmp_path, alerts, monkeypatch):

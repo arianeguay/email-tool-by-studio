@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
     previous = _last_exit(args.journal)
     _record(args.journal, code, message, args.source, drift)
     if code != 0 and code != previous:
-        alerts.notify(line)
+        alerts.notify(line, priority=-1 if code == AUDIT_EXPIRING else 0)
     return code
 
 

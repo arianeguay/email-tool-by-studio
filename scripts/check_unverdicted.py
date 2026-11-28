@@ -116,7 +116,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         or previous.get("exit") != code
         or set(ids) - set(previous.get("unmatched", []))
     ):
-        alerts.notify(line)
+        alerts.notify(line, priority=-1 if code == UNVERDICTED else 0)
     return code
 
 

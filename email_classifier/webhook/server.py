@@ -928,7 +928,7 @@ def create_app(
                 # `held_back` counts what the store spared *net of the expansion*:
                 # a message the store already ruled on comes back anyway when a
                 # thread in the gap needs it, and that one is paid for.
-                alerts.notify(
+                summary = (
                     f"Graph reported missed notifications: classifying "
                     f"{len(batch)} message(s) since {watermark} — {len(in_scope)} in "
                     f"the gap plus {len(batch) - len(in_scope)} thread sibling(s) — one "
@@ -936,6 +936,11 @@ def create_app(
                     f"store, skipped; {len(fresh) - len(in_scope)} out of scope before "
                     f"{floor.isoformat()})"
                 )
+                # A gap the floor emptied costs nothing, so it is no reason to push.
+                if batch:
+                    alerts.notify(summary, priority=-1)
+                else:
+                    _log.warning(summary)
                 _classify(batch, "outlook")
             else:
                 _log.warning(

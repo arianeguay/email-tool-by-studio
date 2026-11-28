@@ -243,7 +243,8 @@ def _catch_up_over(tmp_path, monkeypatch, message_ids, conversation=None):
     )
     _record(tmp_path, subscription_id="sub1", watermark="2026-08-17T00:00:00+00:00")
     alerted = []
-    monkeypatch.setattr(webhook_server.alerts, "notify", alerted.append)
+    monkeypatch.setattr(webhook_server.alerts, "notify",
+                        lambda message, priority=0: alerted.append(message))
     client = _client(tmp_path, session)
 
     client.post("/graph/lifecycle", json=_lifecycle("missed"))
@@ -314,7 +315,8 @@ def test_a_catch_up_names_what_the_date_floor_put_out_of_scope(tmp_path, monkeyp
     )
     _record(tmp_path, subscription_id="sub1", watermark="2026-08-01T00:00:00+00:00")
     alerted = []
-    monkeypatch.setattr(webhook_server.alerts, "notify", alerted.append)
+    monkeypatch.setattr(webhook_server.alerts, "notify",
+                        lambda message, priority=0: alerted.append(message))
     client = _client(tmp_path, session, policy_path=_policy_from(tmp_path, "2026-08-15"))
 
     client.post("/graph/lifecycle", json=_lifecycle("missed"))
@@ -324,6 +326,41 @@ def test_a_catch_up_names_what_the_date_floor_put_out_of_scope(tmp_path, monkeyp
     assert "0 thread sibling(s)" in alerted[0]
     assert "1 out of scope before 2026-08-15" in alerted[0]
     assert _classified_ids(tmp_path) == ["m2"]
+
+
+def test_a_catch_up_is_pushed_without_a_sound(tmp_path, monkeypatch):
+    """It reports a cost being paid, not a stop: nobody has to act within the hour."""
+    session = LifecycleSession(by_id={"m1": _raw_message("m1")}, since_ids=["m1"])
+    _record(tmp_path, subscription_id="sub1", watermark="2026-08-17T00:00:00+00:00")
+    priorities = []
+    monkeypatch.setattr(webhook_server.alerts, "notify",
+                        lambda message, priority=0: priorities.append(priority))
+    client = _client(tmp_path, session)
+
+    client.post("/graph/lifecycle", json=_lifecycle("missed"))
+    _drain(client)
+
+    assert priorities == [-1]
+
+
+def test_a_gap_the_floor_emptied_is_logged_not_pushed(tmp_path, monkeypatch, caplog):
+    """Classifying 0 messages says nothing happened, which is no reason to push."""
+    session = LifecycleSession(
+        by_id={"old": _raw_message("old", received="2026-08-10T00:00:00Z")},
+        since_ids=["old"],
+    )
+    _record(tmp_path, subscription_id="sub1", watermark="2026-08-01T00:00:00+00:00")
+    alerted = []
+    monkeypatch.setattr(webhook_server.alerts, "notify",
+                        lambda message, priority=0: alerted.append(message))
+    client = _client(tmp_path, session, policy_path=_policy_from(tmp_path, "2026-08-15"))
+
+    client.post("/graph/lifecycle", json=_lifecycle("missed"))
+    _drain(client)
+
+    assert alerted == []
+    assert "classifying 0 message(s)" in caplog.text
+    assert _classified_ids(tmp_path) == []
 
 
 def test_a_fully_deduped_catch_up_neither_alerts_nor_runs(tmp_path, monkeypatch, caplog):
