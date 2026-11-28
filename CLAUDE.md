@@ -1436,7 +1436,10 @@ Consequences, each one tested:
   host that sets both gets both, and a dead channel does not take the other down. The
   message is truncated to 1024 characters, since Pushover refuses longer with a 400: an
   alert carrying a traceback must not become a silent delivery failure, exactly the
-  silence the module exists to end.
+  silence the module exists to end. `notify(..., priority=-1)` lists an alert on the phone
+  without a sound (STU-2162): a catch-up's spend, unverdicted mail and an audit entry
+  nearing its shelf date wait for a read, so only a condition that stops classification
+  sounds. A gap the date floor emptied (0 messages to classify) is a log line, not a push.
 - `email_classifier/detector.py`: the name detector, loaded once per server and not once
   per run (STU-938). `_model()` already caches for the life of a process, which is the
   whole batch on `make run`; the push path has no such process. A notification that owes
